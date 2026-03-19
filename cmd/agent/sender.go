@@ -9,7 +9,7 @@ import (
 
 func sendMetrics(store repository.Getter) error {
 	for t, v := range store.GetGauges() {
-		url := fmt.Sprintf("%s/update/gauge/%s/%g", server, t, v)
+		url := fmt.Sprintf("%s/update/gauge/%s/%g", serverAddr, t, v)
 		_, err := http.Post(url, "text/plain", nil)
 		if err != nil {
 			return err
@@ -17,7 +17,7 @@ func sendMetrics(store repository.Getter) error {
 	}
 
 	for t, v := range store.GetCounters() {
-		url := fmt.Sprintf("%s/update/counter/%s/%d", server, t, v)
+		url := fmt.Sprintf("%s/update/counter/%s/%d", serverAddr, t, v)
 		_, err := http.Post(url, "text/plain", nil)
 		if err != nil {
 			return err

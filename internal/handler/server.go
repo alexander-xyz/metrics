@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"net/http"
-
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -19,8 +17,4 @@ func GetRouter(store Storage) *chi.Mux {
 	r.Post("/update/{type}/{id}/{value}", UpdateMetricHandler(store))
 
 	return r
-}
-
-func RunServer(store Storage) error {
-	return http.ListenAndServe(`:8080`, GetRouter(store))
 }

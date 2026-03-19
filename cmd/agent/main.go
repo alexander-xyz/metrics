@@ -6,16 +6,12 @@ import (
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
-const server = "http://localhost:8080"
-
 func main() {
-	const poolInterval = 2
-	const reportInterval = 10
-
+	parseFlags()
 	store := repository.NewMemStorage()
 
-	currentPool := 0
-	currentReport := 0
+	var currentPool int64 = 0
+	var currentReport int64 = 0
 
 	for {
 		time.Sleep(1 * time.Second)
