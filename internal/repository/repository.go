@@ -15,7 +15,9 @@ type Updater interface {
 
 type Getter interface {
 	GetGauges() map[string]Gauge
+	GetGauge(string) (Gauge, bool)
 	GetCounters() map[string]Counter
+	GetCounter(string) (Counter, bool)
 }
 
 func (store *MemStorage) UpdateGauge(name string, value Gauge) {
@@ -26,12 +28,24 @@ func (store *MemStorage) UpdateCounter(name string, value Counter) {
 	store.counters[name] += value
 }
 
+func (store *MemStorage) GetGauge(gauge string) (Gauge, bool) {
+	val, exist := store.gauges[gauge]
+
+	return val, exist
+}
+
 func (store *MemStorage) GetGauges() map[string]Gauge {
 	return store.gauges
 }
 
 func (store *MemStorage) GetCounters() map[string]Counter {
 	return store.counters
+}
+
+func (store *MemStorage) GetCounter(counter string) (Counter, bool) {
+	val, exist := store.counters[counter]
+
+	return val, exist
 }
 
 func NewMemStorage() *MemStorage {

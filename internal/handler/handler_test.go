@@ -6,77 +6,37 @@ import (
 	"testing"
 
 	"github.com/alexander-xyz/metrics/internal/repository"
+	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
 )
 
-type mockStorage struct {
-	gauges   map[string]repository.Gauge
-	counters map[string]repository.Counter
-}
-
-func (m *mockStorage) UpdateGauge(name string, value repository.Gauge) {
-	m.gauges[name] = value
-}
-
-func (m *mockStorage) UpdateCounter(name string, value repository.Counter) {
-	m.counters[name] += value
-}
-
 func TestUpdateMetricHandler(t *testing.T) {
-	store := &mockStorage{
-		gauges:   make(map[string]repository.Gauge),
-		counters: make(map[string]repository.Counter),
-	}
+	store := repository.NewMemStorage()
+	srv := httptest.NewServer(GetRouter(store))
+	defer srv.Close()
 
-	type want struct {
-		contentType string
-		statusCode  int
-	}
-	tests := []struct {
-		name    string
-		request string
-		store   repository.Updater
-		want    want
+	testCases := []struct {
+		method       string
+		expectedCode int
+		request      string
 	}{
-		{
-			name: "simple test #1",
-			want: want{
-				contentType: "text/plain",
-				statusCode:  200,
-			},
-			store:   store,
-			request: "/update/gauge/LastGC/1.25",
-		},
-		{
-			name: "simple test #2",
-			want: want{
-				contentType: "text/plain",
-				statusCode:  404,
-			},
-			store:   store,
-			request: "/update/gauge/",
-		},
-		{
-			name: "simple test #3",
-			want: want{
-				contentType: "text/plain",
-				statusCode:  400,
-			},
-			store:   store,
-			request: "/update/wrong-type/test/3.5",
-		},
+		{method: http.MethodGet, expectedCode: http.StatusMethodNotAllowed, request: "/update/gauge/LastGC/1.25"},
+		{method: http.MethodPut, expectedCode: http.StatusMethodNotAllowed, request: "/update/gauge/LastGC/1.25"},
+		{method: http.MethodDelete, expectedCode: http.StatusMethodNotAllowed, request: "/update/gauge/LastGC/1.25"},
+		{method: http.MethodPost, expectedCode: http.StatusNotFound, request: "/update/gauge/"},
+		{method: http.MethodPost, expectedCode: http.StatusOK, request: "/update/gauge/LastGC/1.25"},
+		{method: http.MethodPost, expectedCode: http.StatusBadRequest, request: "/update/wrong-type/test/3.5"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
-			w := httptest.NewRecorder()
-			h := http.HandlerFunc(UpdateMetricHandler(tt.store))
-			h(w, request)
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL + tc.request
 
-			result := w.Result()
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
 
-			assert.Equal(t, tt.want.statusCode, result.StatusCode)
-			assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
 		})
 	}
 }
