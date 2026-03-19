@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
-func sendMetrics(store MemStorage) error {
-	for t, v := range store.gauges {
+func sendMetrics(store repository.Getter) error {
+	for t, v := range store.GetGauges() {
 		url := fmt.Sprintf("%s/update/gauge/%s/%g", server, t, v)
 		_, err := http.Post(url, "text/plain", nil)
 		if err != nil {
@@ -14,7 +16,7 @@ func sendMetrics(store MemStorage) error {
 		}
 	}
 
-	for t, v := range store.counters {
+	for t, v := range store.GetCounters() {
 		url := fmt.Sprintf("%s/update/counter/%s/%d", server, t, v)
 		_, err := http.Post(url, "text/plain", nil)
 		if err != nil {

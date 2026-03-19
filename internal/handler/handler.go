@@ -1,12 +1,14 @@
-package main
+package handler
 
 import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
-func updateMetricHandler(store Updater) http.HandlerFunc {
+func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/plain")
 
@@ -47,7 +49,7 @@ func updateMetricHandler(store Updater) http.HandlerFunc {
 				return
 			}
 
-			store.UpdateGauge(metricName, gauge(value))
+			store.UpdateGauge(metricName, repository.Gauge(value))
 			res.WriteHeader(http.StatusOK)
 			return
 		}
@@ -59,7 +61,7 @@ func updateMetricHandler(store Updater) http.HandlerFunc {
 			return
 		}
 
-		store.UpdateCounter(metricName, counter(value))
+		store.UpdateCounter(metricName, repository.Counter(value))
 
 		res.WriteHeader(http.StatusOK)
 		return

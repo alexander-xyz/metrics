@@ -2,39 +2,17 @@ package main
 
 import (
 	"time"
+
+	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
 const server = "http://localhost:8080"
-
-type gauge float64
-type counter int64
-
-type MemStorage struct {
-	gauges   map[string]gauge
-	counters map[string]counter
-}
-
-type Updater interface {
-	UpdateGauge(string, gauge)
-	UpdateCounter(string, counter)
-}
-
-func (store *MemStorage) UpdateGauge(name string, value gauge) {
-	store.gauges[name] = value
-}
-
-func (store *MemStorage) UpdateCounter(name string, value counter) {
-	store.counters[name] += value
-}
 
 func main() {
 	const poolInterval = 2
 	const reportInterval = 10
 
-	store := MemStorage{
-		gauges:   map[string]gauge{},
-		counters: map[string]counter{},
-	}
+	store := repository.NewMemStorage()
 
 	currentPool := 0
 	currentReport := 0
@@ -45,7 +23,7 @@ func main() {
 		currentReport++
 
 		if currentPool == poolInterval {
-			collectMetrics(&store)
+			collectMetrics(store)
 			currentPool = 0
 		}
 
