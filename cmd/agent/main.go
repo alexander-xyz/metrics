@@ -1,13 +1,14 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
 func main() {
-	parseFlags()
+	config := parseFlags()
 	store := repository.NewMemStorage()
 
 	var currentPool int64 = 0
@@ -18,16 +19,18 @@ func main() {
 		currentPool++
 		currentReport++
 
-		if currentPool == poolInterval {
+		if currentPool == config.poolInterval {
 			collectMetrics(store)
 			currentPool = 0
 		}
 
-		if currentReport == reportInterval {
-			err := sendMetrics(store)
+		if currentReport == config.reportInterval {
+			err := sendMetrics(store, config)
 			if err != nil {
-				panic(err)
+				log.Print(err)
 			}
+
+			store.SetCounter("PollCount", 0)
 			currentReport = 0
 		}
 	}
