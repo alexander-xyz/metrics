@@ -1,7 +1,8 @@
 package handler
 
 import (
-	"fmt"
+	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -68,9 +69,9 @@ func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 		}
 
 		if metricType == "gauge" {
-			value, ok := store.GetGauge(metricName)
+			value, err := store.GetGauge(metricName)
 
-			if !ok {
+			if err != nil {
 				res.WriteHeader(http.StatusNotFound)
 				return
 			}
@@ -79,9 +80,9 @@ func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 			return
 		}
 
-		value, ok := store.GetCounter(metricName)
+		value, err := store.GetCounter(metricName)
 
-		if !ok {
+		if err != nil {
 			res.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -95,16 +96,47 @@ func GetMetricsHandler(store repository.Getter) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/html")
 
-		res.Write([]byte("<h1>Gauges:</h1>"))
-		for t, v := range store.GetGauges() {
-			text := fmt.Sprintf("<p>%s:%g</p>", t, v)
-			res.Write([]byte(text))
+		const tpl = `
+			<!DOCTYPE html>
+			<html>
+				<head>
+					<meta charset="UTF-8">
+					<title>{{.Title}}</title>
+
+					<style type="text/css">
+					body {
+						background: #000;
+						color: #fff;
+					}
+					</style>
+				</head>
+				<body>
+					<h1>Gauges:</h1>
+					{{range $key, $value := .Gauges}}<div>{{ $key }}: {{ printf "%f" $value }}</div>{{end}}
+					<h1>Counters:</h1>
+					{{range $key, $value := .Counters}}<div>{{ $key }}: {{ printf "%d" $value }}</div>{{end}}
+				</body>
+			</html>`
+
+		data := struct {
+			Title    string
+			Gauges   map[string]repository.Gauge
+			Counters map[string]repository.Counter
+		}{
+			Title:    "Metrics",
+			Gauges:   store.GetGauges(),
+			Counters: store.GetCounters(),
 		}
 
-		res.Write([]byte("<h1>Counters:</h1>"))
-		for t, v := range store.GetCounters() {
-			text := fmt.Sprintf("<p>%s:%d</p>", t, v)
-			res.Write([]byte(text))
+		t, err := template.New("webpage").Parse(tpl)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = t.Execute(res, data)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 }

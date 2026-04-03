@@ -4,9 +4,15 @@ import (
 	"flag"
 )
 
-var flagRunAddr string
+type Config struct {
+	serverAddress string
+}
 
-func parseFlags() {
-	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
+func parseFlags() *Config {
+	config := Config{}
+
+	flag.StringVar(&config.serverAddress, "a", "localhost:8080", "address and port to run server")
 	flag.Parse()
+
+	return &config
 }
