@@ -4,16 +4,16 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
-	"sync"
-
-	"crypto/rsa"
-
 	"github.com/alexander-xyz/metrics/internal/crypt"
+	"github.com/alexander-xyz/metrics/internal/logger"
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/alexander-xyz/metrics/internal/signature"
@@ -94,6 +94,10 @@ func postBatch(url, key string, publicKey *rsa.PublicKey, metrics []models.Metri
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept-Encoding", "gzip")
 
+	if ip := localIP(); ip != "" {
+		req.Header.Set(logger.RealIPHeader, ip)
+	}
+
 	if key != "" {
 		req.Header.Set(signature.Header, signature.Sign(compressed, key))
 	}
@@ -139,4 +143,29 @@ func collectBatch(ctx context.Context, store repository.Getter) ([]models.Metric
 
 func sendBatch(ctx context.Context, metrics []models.Metrics, config *Config, publicKey *rsa.PublicKey) error {
 	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", config.key, publicKey, metrics)
+}
+
+// localIPOnce вычисляет адрес хоста один раз: он не меняется за время
+// работы агента.
+var localIPOnce = sync.OnceValue(func() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		network, ok := addr.(*net.IPNet)
+		if !ok || network.IP.IsLoopback() || network.IP.To4() == nil {
+			continue
+		}
+
+		return network.IP.String()
+	}
+
+	return ""
+})
+
+// localIP возвращает IP-адрес хоста агента для заголовка X-Real-IP.
+func localIP() string {
+	return localIPOnce()
 }

@@ -21,6 +21,7 @@ type Config struct {
 	auditURL        string
 	cryptoKey       string
 	configFile      string
+	trustedSubnet   string
 	storeInterval   int64
 	restore         bool
 }
@@ -40,6 +41,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the private key file")
 	flag.StringVar(&config.configFile, "c", "", "path to the JSON configuration file")
 	flag.StringVar(&config.configFile, "config", "", "path to the JSON configuration file")
+	flag.StringVar(&config.trustedSubnet, "t", "", "trusted subnet in CIDR notation")
 	flag.Parse()
 
 	if err := applyConfigFile(&config); err != nil {
@@ -96,6 +98,10 @@ func parseFlags() (*Config, error) {
 		config.cryptoKey = envCryptoKey
 	}
 
+	if envSubnet := os.Getenv("TRUSTED_SUBNET"); envSubnet != "" {
+		config.trustedSubnet = envSubnet
+	}
+
 	return &config, nil
 }
 
@@ -136,6 +142,10 @@ func applyConfigFile(target *Config) error {
 
 	if !set["r"] && os.Getenv("RESTORE") == "" {
 		target.restore = fromFile.Restore
+	}
+
+	if !set["t"] && os.Getenv("TRUSTED_SUBNET") == "" && fromFile.TrustedSubnet != "" {
+		target.trustedSubnet = fromFile.TrustedSubnet
 	}
 
 	return nil

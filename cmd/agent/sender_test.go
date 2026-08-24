@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alexander-xyz/metrics/internal/logger"
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/alexander-xyz/metrics/internal/signature"
@@ -109,4 +111,29 @@ func TestCollectBatch(t *testing.T) {
 	require.NotNil(t, byID["PollCount"].Delta)
 	assert.Equal(t, int64(3), *byID["PollCount"].Delta)
 	assert.Equal(t, models.Counter, byID["PollCount"].MType)
+}
+
+func TestPostBatchSendsRealIP(t *testing.T) {
+	var gotIP string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		gotIP = req.Header.Get(logger.RealIPHeader)
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	require.NoError(t, postBatch(srv.URL, "", nil, nil))
+
+	assert.Equal(t, localIP(), gotIP, "агент передаёт свой адрес в X-Real-IP")
+}
+
+func TestLocalIPIsRoutable(t *testing.T) {
+	ip := localIP()
+	if ip == "" {
+		t.Skip("у хоста нет внешних адресов")
+	}
+
+	parsed := net.ParseIP(ip)
+	require.NotNil(t, parsed)
+	assert.False(t, parsed.IsLoopback(), "loopback не подходит для X-Real-IP")
 }

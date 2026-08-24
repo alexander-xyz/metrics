@@ -157,5 +157,8 @@ cover40:
 cover55:
 	./.tools/covertest -test.v -test.run=^TestCoverage55$$
 
+cover70:
+	./.tools/covertest -test.v -test.run=^TestCoverage70$$
+
 fmt:
 	gofmt -l -w .

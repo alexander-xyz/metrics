@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -142,7 +143,18 @@ func RunServer(ctx context.Context, config *Config) error {
 		logger.Log.Info("request decryption enabled", zap.String("key", config.cryptoKey))
 	}
 
-	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config), privateKey)
+	var subnet *net.IPNet
+
+	if config.trustedSubnet != "" {
+		_, subnet, err = net.ParseCIDR(config.trustedSubnet)
+		if err != nil {
+			return fmt.Errorf("parse trusted subnet: %w", err)
+		}
+
+		logger.Log.Info("trusted subnet enabled", zap.String("subnet", config.trustedSubnet))
+	}
+
+	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config), privateKey, subnet)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

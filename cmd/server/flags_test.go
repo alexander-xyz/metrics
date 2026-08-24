@@ -25,7 +25,8 @@ func TestApplyConfigFile(t *testing.T) {
 		"store_interval": "42s",
 		"store_file": "/tmp/from-config.json",
 		"database_dsn": "postgres://localhost/db",
-		"crypto_key": "/tmp/key.pem"
+		"crypto_key": "/tmp/key.pem",
+		"trusted_subnet": "10.0.0.0/8"
 	}`)
 
 	config := Config{configFile: path}
@@ -37,6 +38,18 @@ func TestApplyConfigFile(t *testing.T) {
 	assert.Equal(t, "/tmp/key.pem", config.cryptoKey)
 	assert.Equal(t, int64(42), config.storeInterval)
 	assert.True(t, config.restore)
+	assert.Equal(t, "10.0.0.0/8", config.trustedSubnet)
+}
+
+func TestTrustedSubnetFromEnvironmentBeatsFile(t *testing.T) {
+	path := writeServerConfig(t, `{"trusted_subnet": "10.0.0.0/8"}`)
+
+	t.Setenv("TRUSTED_SUBNET", "192.168.0.0/16")
+
+	config := Config{configFile: path, trustedSubnet: "192.168.0.0/16"}
+	require.NoError(t, applyConfigFile(&config))
+
+	assert.Equal(t, "192.168.0.0/16", config.trustedSubnet)
 }
 
 func TestEnvironmentBeatsConfigFile(t *testing.T) {

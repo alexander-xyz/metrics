@@ -13,7 +13,7 @@ import (
 
 // exampleServer поднимает сервер метрик с хранилищем в памяти.
 func exampleServer() *httptest.Server {
-	router, err := handler.GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := handler.GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	if err != nil {
 		panic(err)
 	}

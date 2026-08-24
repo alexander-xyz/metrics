@@ -18,7 +18,7 @@ func TestMetricsPageListsStoredMetrics(t *testing.T) {
 	require.NoError(t, store.UpdateGauge(ctx, "Alloc", 1.5))
 	require.NoError(t, store.UpdateCounter(ctx, "PollCount", 3))
 
-	router, err := GetRouter(store, nil, "", nil, nil)
+	router, err := GetRouter(store, nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
@@ -33,7 +33,7 @@ func TestMetricsPageListsStoredMetrics(t *testing.T) {
 }
 
 func TestPingWithoutDatabase(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
@@ -43,7 +43,7 @@ func TestPingWithoutDatabase(t *testing.T) {
 }
 
 func TestGetMetricRejectsUnknownType(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
@@ -53,7 +53,7 @@ func TestGetMetricRejectsUnknownType(t *testing.T) {
 }
 
 func TestGetMetricNotFound(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
@@ -63,7 +63,7 @@ func TestGetMetricNotFound(t *testing.T) {
 }
 
 func TestUpdateMetricRejectsBrokenValues(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -86,7 +86,7 @@ func TestUpdateMetricRejectsBrokenValues(t *testing.T) {
 }
 
 func TestUpdateMetricJSONRejectsBrokenBody(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -115,7 +115,7 @@ func TestUpdateMetricJSONRejectsBrokenBody(t *testing.T) {
 }
 
 func TestUpdateMetricsJSONRejectsBrokenBatch(t *testing.T) {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil, nil)
 	require.NoError(t, err)
 
 	testCases := []struct {
