@@ -90,15 +90,15 @@ func postBatch(url, key string, metrics []models.Metrics) error {
 	return nil
 }
 
-func sendMetrics(ctx context.Context, store repository.Getter, config *Config) error {
+func collectBatch(ctx context.Context, store repository.Getter) ([]models.Metrics, error) {
 	gauges, err := store.GetGauges(ctx)
 	if err != nil {
-		return fmt.Errorf("read gauges: %w", err)
+		return nil, fmt.Errorf("read gauges: %w", err)
 	}
 
 	counters, err := store.GetCounters(ctx)
 	if err != nil {
-		return fmt.Errorf("read counters: %w", err)
+		return nil, fmt.Errorf("read counters: %w", err)
 	}
 
 	metrics := make([]models.Metrics, 0, len(gauges)+len(counters))
@@ -113,9 +113,9 @@ func sendMetrics(ctx context.Context, store repository.Getter, config *Config) e
 		metrics = append(metrics, models.Metrics{ID: name, MType: models.Counter, Delta: &d})
 	}
 
-	if len(metrics) == 0 {
-		return nil
-	}
+	return metrics, nil
+}
 
+func sendBatch(ctx context.Context, metrics []models.Metrics, config *Config) error {
 	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", config.key, metrics)
 }
