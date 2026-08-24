@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 
+	"github.com/alexander-xyz/metrics/internal/audit"
 	"github.com/alexander-xyz/metrics/internal/handler"
 	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -81,6 +82,26 @@ func buildStorage(ctx context.Context, db *sql.DB, config *Config) (handler.Stor
 	return store, nil
 }
 
+func buildAuditor(config *Config) *audit.Publisher {
+	publisher := audit.NewPublisher()
+
+	onError := func(err error) {
+		logger.Log.Error(err.Error())
+	}
+
+	if config.auditFile != "" {
+		publisher.Register(audit.NewFileObserver(config.auditFile, onError))
+		logger.Log.Info("audit to file enabled", zap.String("file", config.auditFile))
+	}
+
+	if config.auditURL != "" {
+		publisher.Register(audit.NewHTTPObserver(config.auditURL, onError))
+		logger.Log.Info("audit to url enabled", zap.String("url", config.auditURL))
+	}
+
+	return publisher
+}
+
 func RunServer(ctx context.Context, config *Config) error {
 	if err := logger.Initialize(config.logLevel); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
@@ -102,7 +123,7 @@ func RunServer(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	router, err := handler.GetRouter(store, db, config.key)
+	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config))
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

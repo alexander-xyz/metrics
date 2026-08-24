@@ -22,6 +22,8 @@ func (w *signingWriter) Write(b []byte) (int, error) {
 	return w.body.Write(b)
 }
 
+// SignatureMiddleware — middleware, проверяющее подпись тела запроса
+// и подписывающее тело ответа. При пустом ключе подпись не используется.
 func SignatureMiddleware(key string) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

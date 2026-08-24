@@ -1,3 +1,5 @@
+// Package pgerrors классифицирует ошибки PostgreSQL и повторяет операции,
+// завершившиеся повторяемой ошибкой.
 package pgerrors
 
 import (
@@ -7,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// PGErrorClassification — признак того, имеет ли смысл повторять операцию.
 type PGErrorClassification int
 
 const (
@@ -14,8 +17,10 @@ const (
 	Retriable
 )
 
+// PostgresErrorClassifier относит ошибки PostgreSQL к повторяемым или нет.
 type PostgresErrorClassifier struct{}
 
+// NewPostgresErrorClassifier создаёт классификатор ошибок PostgreSQL.
 func NewPostgresErrorClassifier() *PostgresErrorClassifier {
 	return &PostgresErrorClassifier{}
 }
@@ -33,6 +38,8 @@ func (c *PostgresErrorClassifier) Classify(err error) PGErrorClassification {
 	return NonRetriable
 }
 
+// ClassifyPgError относит ошибку PostgreSQL к повторяемым, если она вызвана
+// проблемами соединения (класс 08).
 func ClassifyPgError(pgErr *pgconn.PgError) PGErrorClassification {
 	switch pgErr.Code {
 	case pgerrcode.ConnectionException,

@@ -1,3 +1,4 @@
+// Package handler содержит HTTP-хендлеры сервера метрик и сборку роутера.
 package handler
 
 import (
@@ -16,7 +17,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
+// UpdateMetricHandler возвращает хендлер приёма метрики из параметров пути:
+// POST /update/{type}/{id}/{value}. Поддерживаются типы gauge и counter.
+func UpdateMetricHandler(store repository.Updater, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/plain")
 
@@ -45,7 +48,11 @@ func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
 			if err := store.UpdateGauge(req.Context(), metricName, repository.Gauge(value)); err != nil {
 				log.Print(err)
 				http.Error(res, "cannot store metric", http.StatusInternalServerError)
+
+				return
 			}
+
+			notifyAudit(auditor, req, []string{metricName})
 
 			return
 		}
@@ -60,10 +67,16 @@ func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
 		if err := store.UpdateCounter(req.Context(), metricName, repository.Counter(value)); err != nil {
 			log.Print(err)
 			http.Error(res, "cannot store metric", http.StatusInternalServerError)
+
+			return
 		}
+
+		notifyAudit(auditor, req, []string{metricName})
 	}
 }
 
+// GetMetricHandler возвращает хендлер чтения значения метрики:
+// GET /value/{type}/{id}. Если метрики нет, отвечает 404.
 func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/plain")
@@ -127,6 +140,8 @@ const metricsPageTpl = `
 				</body>
 			</html>`
 
+// GetMetricsHandler возвращает хендлер главной страницы со списком всех метрик
+// в виде HTML-таблицы. Шаблон разбирается один раз при создании хендлера.
 func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
 	t, err := template.New("webpage").Parse(metricsPageTpl)
 	if err != nil {
@@ -198,7 +213,9 @@ func writeMetric(res http.ResponseWriter, metric models.Metrics) {
 	}
 }
 
-func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
+// UpdateMetricJSONHandler возвращает хендлер приёма одной метрики в формате JSON:
+// POST /update. В ответе отдаётся сохранённое значение метрики.
+func UpdateMetricJSONHandler(store Storage, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metric, ok := decodeMetric(res, req)
 		if !ok {
@@ -227,6 +244,7 @@ func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
 			stored := float64(value)
 			metric.Value = &stored
 			writeMetric(res, metric)
+			notifyAudit(auditor, req, []string{metric.ID})
 
 			return
 		}
@@ -252,9 +270,12 @@ func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
 		stored := int64(delta)
 		metric.Delta = &stored
 		writeMetric(res, metric)
+		notifyAudit(auditor, req, []string{metric.ID})
 	}
 }
 
+// GetMetricJSONHandler возвращает хендлер чтения метрики в формате JSON:
+// POST /value. Тело запроса содержит идентификатор и тип метрики.
 func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metric, ok := decodeMetric(res, req)
@@ -288,6 +309,7 @@ func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 	}
 }
 
+// PingHandler возвращает хендлер проверки соединения с базой данных: GET /ping.
 func PingHandler(db *sql.DB) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if db == nil {
@@ -309,7 +331,9 @@ func PingHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-func UpdateMetricsJSONHandler(store Storage) http.HandlerFunc {
+// UpdateMetricsJSONHandler возвращает хендлер приёма пакета метрик:
+// POST /updates. Метрики сохраняются одной транзакцией.
+func UpdateMetricsJSONHandler(store Storage, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var metrics []models.Metrics
 
@@ -342,11 +366,18 @@ func UpdateMetricsJSONHandler(store Storage) http.HandlerFunc {
 			return
 		}
 
+		names := make([]string, 0, len(metrics))
+		for _, metric := range metrics {
+			names = append(names, metric.ID)
+		}
+
 		res.Header().Set("Content-Type", "application/json")
 		res.WriteHeader(http.StatusOK)
 
 		if _, err := res.Write([]byte(`{"status":"ok"}`)); err != nil {
 			log.Print(err)
 		}
+
+		notifyAudit(auditor, req, names)
 	}
 }
