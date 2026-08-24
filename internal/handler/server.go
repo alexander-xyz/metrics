@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/rsa"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -19,9 +20,11 @@ type Storage interface {
 }
 
 // GetRouter собирает маршрутизатор сервера метрик со всеми хендлерами
-// и middleware: логированием, проверкой подписи и gzip-сжатием.
-// Аргумент auditor может быть nil — тогда аудит запросов отключён.
-func GetRouter(store Storage, db *sql.DB, key string, auditor Auditor) (*chi.Mux, error) {
+// и middleware: логированием, проверкой подписи, расшифровкой тела запроса
+// и gzip-сжатием.
+// Аргументы auditor и privateKey могут быть nil — тогда аудит запросов
+// и расшифровка отключены.
+func GetRouter(store Storage, db *sql.DB, key string, auditor Auditor, privateKey *rsa.PrivateKey) (*chi.Mux, error) {
 	metricsHandler, err := GetMetricsHandler(store)
 	if err != nil {
 		return nil, fmt.Errorf("build metrics handler: %w", err)
@@ -30,6 +33,7 @@ func GetRouter(store Storage, db *sql.DB, key string, auditor Auditor) (*chi.Mux
 	r := chi.NewRouter()
 	r.Use(logger.RequestLogger)
 	r.Use(logger.SignatureMiddleware(key))
+	r.Use(logger.DecryptMiddleware(privateKey))
 	r.Use(logger.GzipMiddleware)
 	r.Get("/", metricsHandler)
 	r.Get("/value/{type}/{id}", GetMetricHandler(store))

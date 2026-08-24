@@ -17,6 +17,7 @@ type Config struct {
 	key             string
 	auditFile       string
 	auditURL        string
+	cryptoKey       string
 	storeInterval   int64
 	restore         bool
 }
@@ -33,6 +34,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.key, "k", "", "key for request signature")
 	flag.StringVar(&config.auditFile, "audit-file", "", "path to the audit log file")
 	flag.StringVar(&config.auditURL, "audit-url", "", "url of the remote audit receiver")
+	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the private key file")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -79,6 +81,10 @@ func parseFlags() (*Config, error) {
 
 	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
 		config.auditURL = envAuditURL
+	}
+
+	if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		config.cryptoKey = envCryptoKey
 	}
 
 	return &config, nil

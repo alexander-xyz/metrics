@@ -11,7 +11,7 @@ import (
 )
 
 func benchRouter(b *testing.B) http.Handler {
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", nil, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func BenchmarkUpdateMetricsJSONHandlerGzip(b *testing.B) {
 
 func BenchmarkGetMetricsHandler(b *testing.B) {
 	store := repository.NewMemStorage()
-	router, err := GetRouter(store, nil, "", nil)
+	router, err := GetRouter(store, nil, "", nil, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

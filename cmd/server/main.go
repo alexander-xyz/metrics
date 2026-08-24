@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"database/sql"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/alexander-xyz/metrics/internal/audit"
+	"github.com/alexander-xyz/metrics/internal/crypt"
 	"github.com/alexander-xyz/metrics/internal/handler"
 	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -123,7 +125,18 @@ func RunServer(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config))
+	var privateKey *rsa.PrivateKey
+
+	if config.cryptoKey != "" {
+		privateKey, err = crypt.LoadPrivateKey(config.cryptoKey)
+		if err != nil {
+			return fmt.Errorf("load private key: %w", err)
+		}
+
+		logger.Log.Info("request decryption enabled", zap.String("key", config.cryptoKey))
+	}
+
+	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config), privateKey)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

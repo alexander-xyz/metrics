@@ -11,6 +11,7 @@ import (
 type Config struct {
 	serverAddress  string
 	key            string
+	cryptoKey      string
 	pollInterval   int64
 	reportInterval int64
 	rateLimit      int64
@@ -26,6 +27,7 @@ func parseFlags() (*Config, error) {
 	flag.Int64Var(&config.pollInterval, "p", 2, "update poll interval in seconds")
 	flag.StringVar(&config.key, "k", "", "key for request signature")
 	flag.Int64Var(&config.rateLimit, "l", 1, "limit of simultaneous outgoing requests")
+	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the public key file")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -52,6 +54,10 @@ func parseFlags() (*Config, error) {
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
 		config.key = envKey
+	}
+
+	if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		config.cryptoKey = envCryptoKey
 	}
 
 	if envRateLimit := os.Getenv("RATE_LIMIT"); envRateLimit != "" {

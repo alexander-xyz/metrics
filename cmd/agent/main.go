@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/alexander-xyz/metrics/internal/crypt"
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
@@ -70,11 +72,11 @@ func report(ctx context.Context, store repository.Getter, jobs chan<- []models.M
 	}
 }
 
-func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, wg *sync.WaitGroup) {
+func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, publicKey *rsa.PublicKey, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for batch := range jobs {
-		if err := sendBatch(ctx, batch, config); err != nil {
+		if err := sendBatch(ctx, batch, config, publicKey); err != nil {
 			log.Print(err)
 			continue
 		}
@@ -93,6 +95,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var publicKey *rsa.PublicKey
+
+	if config.cryptoKey != "" {
+		publicKey, err = crypt.LoadPublicKey(config.cryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	ctx := context.Background()
 	store := repository.NewMemStorage()
 	jobs := make(chan []models.Metrics, config.rateLimit)
@@ -102,7 +113,7 @@ func main() {
 	for i := int64(0); i < config.rateLimit; i++ {
 		wg.Add(1)
 
-		go worker(ctx, jobs, store, config, &wg)
+		go worker(ctx, jobs, store, config, publicKey, &wg)
 	}
 
 	go pollRuntime(ctx, store, time.Duration(config.pollInterval)*time.Second)
