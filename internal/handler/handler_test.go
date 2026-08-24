@@ -13,7 +13,7 @@ import (
 
 func TestUpdateMetricHandler(t *testing.T) {
 	store := repository.NewMemStorage()
-	router, err := GetRouter(store)
+	router, err := GetRouter(store, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(router)
@@ -47,7 +47,7 @@ func TestUpdateMetricHandler(t *testing.T) {
 
 func TestUpdateMetricJSONHandler(t *testing.T) {
 	store := repository.NewMemStorage()
-	router, err := GetRouter(store)
+	router, err := GetRouter(store, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(router)
@@ -122,7 +122,7 @@ func TestGetMetricJSONHandler(t *testing.T) {
 	store.UpdateGauge("Alloc", repository.Gauge(42.5))
 	store.UpdateCounter("PollCount", repository.Counter(7))
 
-	router, err := GetRouter(store)
+	router, err := GetRouter(store, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(router)

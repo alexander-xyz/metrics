@@ -1,11 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 
 	"github.com/alexander-xyz/metrics/internal/handler"
@@ -25,12 +27,36 @@ func saveWithInterval(store repository.Getter, config *Config) {
 	}
 }
 
+func openDatabase(dsn string) (*sql.DB, error) {
+	if dsn == "" {
+		return nil, nil
+	}
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	return db, nil
+}
+
 func RunServer(store *repository.MemStorage, config *Config) error {
 	if err := logger.Initialize(config.logLevel); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
 	}
 
 	defer logger.Log.Sync()
+
+	db, err := openDatabase(config.databaseDSN)
+	if err != nil {
+		return err
+	}
+
+	if db != nil {
+		defer db.Close()
+
+		logger.Log.Info("database configured", zap.String("dsn", config.databaseDSN))
+	}
 
 	if config.restore {
 		if err := storage.Load(store, config.fileStoragePath); err != nil {
@@ -50,7 +76,7 @@ func RunServer(store *repository.MemStorage, config *Config) error {
 		go saveWithInterval(store, config)
 	}
 
-	router, err := handler.GetRouter(served)
+	router, err := handler.GetRouter(served, db)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

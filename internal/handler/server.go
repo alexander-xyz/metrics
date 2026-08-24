@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/alexander-xyz/metrics/internal/logger"
@@ -13,7 +14,7 @@ type Storage interface {
 	repository.Getter
 }
 
-func GetRouter(store Storage) (*chi.Mux, error) {
+func GetRouter(store Storage, db *sql.DB) (*chi.Mux, error) {
 	metricsHandler, err := GetMetricsHandler(store)
 	if err != nil {
 		return nil, fmt.Errorf("build metrics handler: %w", err)
@@ -29,6 +30,7 @@ func GetRouter(store Storage) (*chi.Mux, error) {
 	r.Post("/update/", UpdateMetricJSONHandler(store))
 	r.Post("/value", GetMetricJSONHandler(store))
 	r.Post("/value/", GetMetricJSONHandler(store))
+	r.Get("/ping", PingHandler(db))
 
 	return r, nil
 }

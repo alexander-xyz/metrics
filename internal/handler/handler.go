@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -249,5 +252,26 @@ func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 		stored := int64(delta)
 		metric.Delta = &stored
 		writeMetric(res, metric)
+	}
+}
+
+func PingHandler(db *sql.DB) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		if db == nil {
+			http.Error(res, "database is not configured", http.StatusInternalServerError)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(req.Context(), 3*time.Second)
+		defer cancel()
+
+		if err := db.PingContext(ctx); err != nil {
+			log.Print(err)
+			http.Error(res, "database is unavailable", http.StatusInternalServerError)
+
+			return
+		}
+
+		res.WriteHeader(http.StatusOK)
 	}
 }
