@@ -2,21 +2,29 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 
 	"github.com/alexander-xyz/metrics/internal/audit"
+	"github.com/alexander-xyz/metrics/internal/crypt"
 	"github.com/alexander-xyz/metrics/internal/handler"
 	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/alexander-xyz/metrics/internal/storage"
 )
+
+// shutdownTimeout ограничивает время штатного завершения сервера.
+const shutdownTimeout = 10 * time.Second
 
 func openDatabase(dsn string) (*sql.DB, error) {
 	if dsn == "" {
@@ -123,14 +131,65 @@ func RunServer(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config))
+	var privateKey *rsa.PrivateKey
+
+	if config.cryptoKey != "" {
+		privateKey, err = crypt.LoadPrivateKey(config.cryptoKey)
+		if err != nil {
+			return fmt.Errorf("load private key: %w", err)
+		}
+
+		logger.Log.Info("request decryption enabled", zap.String("key", config.cryptoKey))
+	}
+
+	router, err := handler.GetRouter(store, db, config.key, buildAuditor(config), privateKey)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}
 
 	logger.Log.Info("starting server", zap.String("address", config.serverAddress))
 
-	return http.ListenAndServe(config.serverAddress, router)
+	srv := &http.Server{Addr: config.serverAddress, Handler: router}
+
+	failed := make(chan error, 1)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			failed <- err
+		}
+	}()
+
+	select {
+	case err := <-failed:
+		return fmt.Errorf("run server: %w", err)
+	case <-ctx.Done():
+		logger.Log.Info("shutdown signal received")
+	}
+
+	return shutdown(srv, db, store, config)
+}
+
+// shutdown завершает работу сервера: дообрабатывает открытые соединения
+// и сохраняет метрики, которые ещё не попали в хранилище.
+func shutdown(srv *http.Server, db *sql.DB, store handler.Storage, config *Config) error {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown server: %w", err)
+	}
+
+	logger.Log.Info("all requests handled")
+
+	if db == nil && config.fileStoragePath != "" {
+		if err := storage.Save(shutdownCtx, store, config.fileStoragePath); err != nil {
+			return fmt.Errorf("save metrics: %w", err)
+		}
+
+		logger.Log.Info("metrics saved", zap.String("file", config.fileStoragePath))
+	}
+
+	return nil
 }
 
 func main() {
@@ -141,7 +200,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := RunServer(context.Background(), config); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
+	if err := RunServer(ctx, config); err != nil {
 		log.Fatal(err)
 	}
 }

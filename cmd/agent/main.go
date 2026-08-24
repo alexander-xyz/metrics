@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"log"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
+	"github.com/alexander-xyz/metrics/internal/crypt"
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
@@ -70,11 +74,11 @@ func report(ctx context.Context, store repository.Getter, jobs chan<- []models.M
 	}
 }
 
-func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, wg *sync.WaitGroup) {
+func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, publicKey *rsa.PublicKey, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for batch := range jobs {
-		if err := sendBatch(ctx, batch, config); err != nil {
+		if err := sendBatch(ctx, batch, config, publicKey); err != nil {
 			log.Print(err)
 			continue
 		}
@@ -82,6 +86,26 @@ func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.
 		if err := store.SetCounter(ctx, "PollCount", 0); err != nil {
 			log.Print(err)
 		}
+	}
+}
+
+// flush ставит в очередь метрики, собранные к моменту остановки,
+// чтобы воркеры успели отправить их на сервер.
+func flush(store repository.Getter, jobs chan<- []models.Metrics) {
+	batch, err := collectBatch(context.Background(), store)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	if len(batch) == 0 {
+		return
+	}
+
+	select {
+	case jobs <- batch:
+	default:
+		log.Print("job queue is full, metrics are dropped")
 	}
 }
 
@@ -93,7 +117,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ctx := context.Background()
+	var publicKey *rsa.PublicKey
+
+	if config.cryptoKey != "" {
+		publicKey, err = crypt.LoadPublicKey(config.cryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
 	store := repository.NewMemStorage()
 	jobs := make(chan []models.Metrics, config.rateLimit)
 
@@ -102,7 +138,7 @@ func main() {
 	for i := int64(0); i < config.rateLimit; i++ {
 		wg.Add(1)
 
-		go worker(ctx, jobs, store, config, &wg)
+		go worker(ctx, jobs, store, config, publicKey, &wg)
 	}
 
 	go pollRuntime(ctx, store, time.Duration(config.pollInterval)*time.Second)
@@ -110,6 +146,12 @@ func main() {
 
 	report(ctx, store, jobs, time.Duration(config.reportInterval)*time.Second)
 
+	log.Print("shutdown signal received")
+
+	flush(store, jobs)
+
 	close(jobs)
 	wg.Wait()
+
+	log.Print("all metrics sent")
 }

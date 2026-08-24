@@ -11,6 +11,9 @@ import (
 
 	"sync"
 
+	"crypto/rsa"
+
+	"github.com/alexander-xyz/metrics/internal/crypt"
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/alexander-xyz/metrics/internal/signature"
@@ -43,8 +46,8 @@ func compress(data []byte) ([]byte, error) {
 
 var retryDelays = []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
 
-func postBatchWithRetry(ctx context.Context, url, key string, metrics []models.Metrics) error {
-	err := postBatch(url, key, metrics)
+func postBatchWithRetry(ctx context.Context, url, key string, publicKey *rsa.PublicKey, metrics []models.Metrics) error {
+	err := postBatch(url, key, publicKey, metrics)
 	if err == nil {
 		return nil
 	}
@@ -56,7 +59,7 @@ func postBatchWithRetry(ctx context.Context, url, key string, metrics []models.M
 		case <-time.After(delay):
 		}
 
-		if err = postBatch(url, key, metrics); err == nil {
+		if err = postBatch(url, key, publicKey, metrics); err == nil {
 			return nil
 		}
 	}
@@ -64,7 +67,7 @@ func postBatchWithRetry(ctx context.Context, url, key string, metrics []models.M
 	return err
 }
 
-func postBatch(url, key string, metrics []models.Metrics) error {
+func postBatch(url, key string, publicKey *rsa.PublicKey, metrics []models.Metrics) error {
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("marshal metrics: %w", err)
@@ -73,6 +76,13 @@ func postBatch(url, key string, metrics []models.Metrics) error {
 	compressed, err := compress(body)
 	if err != nil {
 		return fmt.Errorf("compress metrics: %w", err)
+	}
+
+	if publicKey != nil {
+		compressed, err = crypt.Encrypt(publicKey, compressed)
+		if err != nil {
+			return fmt.Errorf("encrypt metrics: %w", err)
+		}
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(compressed))
@@ -127,6 +137,6 @@ func collectBatch(ctx context.Context, store repository.Getter) ([]models.Metric
 	return metrics, nil
 }
 
-func sendBatch(ctx context.Context, metrics []models.Metrics, config *Config) error {
-	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", config.key, metrics)
+func sendBatch(ctx context.Context, metrics []models.Metrics, config *Config, publicKey *rsa.PublicKey) error {
+	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", config.key, publicKey, metrics)
 }

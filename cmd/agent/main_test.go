@@ -96,7 +96,7 @@ func TestWorkerResetsPollCount(t *testing.T) {
 	wg.Add(1)
 
 	config := &Config{serverAddress: srv.URL}
-	worker(ctx, jobs, store, config, &wg)
+	worker(ctx, jobs, store, config, nil, &wg)
 	wg.Wait()
 
 	counter, err := store.GetCounter(ctx, "PollCount")
@@ -148,7 +148,7 @@ func TestWorkerKeepsCounterWhenSendFails(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	worker(ctx, jobs, store, &Config{serverAddress: srv.URL}, &wg)
+	worker(ctx, jobs, store, &Config{serverAddress: srv.URL}, nil, &wg)
 	wg.Wait()
 
 	counter, err := store.GetCounter(context.Background(), "PollCount")
@@ -169,5 +169,55 @@ func TestReportSkipsEmptyStore(t *testing.T) {
 	case batch := <-jobs:
 		t.Fatalf("пустой батч не должен отправляться, получено %d метрик", len(batch))
 	case <-time.After(120 * time.Millisecond):
+	}
+}
+
+func TestFlushQueuesPendingMetrics(t *testing.T) {
+	store := repository.NewMemStorage()
+	ctx := context.Background()
+
+	require.NoError(t, store.UpdateGauge(ctx, "Alloc", 1.5))
+	require.NoError(t, store.UpdateCounter(ctx, "PollCount", 3))
+
+	jobs := make(chan []models.Metrics, 1)
+	flush(store, jobs)
+
+	select {
+	case batch := <-jobs:
+		assert.Len(t, batch, 2, "накопленные метрики поставлены в очередь")
+	default:
+		t.Fatal("метрики не попали в очередь при остановке")
+	}
+}
+
+func TestFlushSkipsEmptyStore(t *testing.T) {
+	jobs := make(chan []models.Metrics, 1)
+	flush(repository.NewMemStorage(), jobs)
+
+	select {
+	case batch := <-jobs:
+		t.Fatalf("пустой батч не должен ставиться в очередь: %v", batch)
+	default:
+	}
+}
+
+func TestFlushDoesNotBlockOnFullQueue(t *testing.T) {
+	store := repository.NewMemStorage()
+	require.NoError(t, store.UpdateGauge(context.Background(), "Alloc", 1.5))
+
+	jobs := make(chan []models.Metrics, 1)
+	jobs <- []models.Metrics{}
+
+	done := make(chan struct{})
+
+	go func() {
+		flush(store, jobs)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("flush заблокировался на заполненной очереди")
 	}
 }

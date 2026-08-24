@@ -54,7 +54,7 @@ func TestPostBatch(t *testing.T) {
 	value := 1.5
 	metrics := []models.Metrics{{ID: "Alloc", MType: models.Gauge, Value: &value}}
 
-	require.NoError(t, postBatch(srv.URL, "key", metrics))
+	require.NoError(t, postBatch(srv.URL, "key", nil, metrics))
 
 	assert.Equal(t, "gzip", gotEncoding)
 	assert.NotEmpty(t, gotSum, "подпись передана")
@@ -67,7 +67,7 @@ func TestPostBatchFailsOnBadStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	assert.Error(t, postBatch(srv.URL, "", nil))
+	assert.Error(t, postBatch(srv.URL, "", nil, nil))
 }
 
 func TestPostBatchWithRetryStopsOnCancelledContext(t *testing.T) {
@@ -82,7 +82,7 @@ func TestPostBatchWithRetryStopsOnCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	assert.Error(t, postBatchWithRetry(ctx, srv.URL, "", nil))
+	assert.Error(t, postBatchWithRetry(ctx, srv.URL, "", nil, nil))
 	assert.Equal(t, 1, calls, "отменённый контекст не повторяет отправку")
 }
 
