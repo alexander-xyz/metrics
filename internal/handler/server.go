@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 
+	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -19,6 +20,7 @@ func GetRouter(store Storage) (*chi.Mux, error) {
 	}
 
 	r := chi.NewRouter()
+	r.Use(logger.RequestLogger)
 	r.Get("/", metricsHandler)
 	r.Get("/value/{type}/{id}", GetMetricHandler(store))
 	r.Post("/update/{type}/{id}/{value}", UpdateMetricHandler(store))
