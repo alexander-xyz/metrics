@@ -15,6 +15,7 @@ type Config struct {
 	key            string
 	cryptoKey      string
 	configFile     string
+	grpcAddress    string
 	pollInterval   int64
 	reportInterval int64
 	rateLimit      int64
@@ -33,6 +34,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the public key file")
 	flag.StringVar(&config.configFile, "c", "", "path to the JSON configuration file")
 	flag.StringVar(&config.configFile, "config", "", "path to the JSON configuration file")
+	flag.StringVar(&config.grpcAddress, "g", "", "address of the gRPC server, enables gRPC transport")
 	flag.Parse()
 
 	if err := applyConfigFile(&config, &flagRunAddr); err != nil {
@@ -67,6 +69,10 @@ func parseFlags() (*Config, error) {
 
 	if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
 		config.cryptoKey = envCryptoKey
+	}
+
+	if envGRPC := os.Getenv("GRPC_ADDRESS"); envGRPC != "" {
+		config.grpcAddress = envGRPC
 	}
 
 	if envRateLimit := os.Getenv("RATE_LIMIT"); envRateLimit != "" {

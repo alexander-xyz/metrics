@@ -22,6 +22,7 @@ type Config struct {
 	cryptoKey       string
 	configFile      string
 	trustedSubnet   string
+	grpcAddress     string
 	storeInterval   int64
 	restore         bool
 }
@@ -42,6 +43,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.configFile, "c", "", "path to the JSON configuration file")
 	flag.StringVar(&config.configFile, "config", "", "path to the JSON configuration file")
 	flag.StringVar(&config.trustedSubnet, "t", "", "trusted subnet in CIDR notation")
+	flag.StringVar(&config.grpcAddress, "g", "", "address to run the gRPC server, empty disables it")
 	flag.Parse()
 
 	if err := applyConfigFile(&config); err != nil {
@@ -100,6 +102,10 @@ func parseFlags() (*Config, error) {
 
 	if envSubnet := os.Getenv("TRUSTED_SUBNET"); envSubnet != "" {
 		config.trustedSubnet = envSubnet
+	}
+
+	if envGRPC := os.Getenv("GRPC_ADDRESS"); envGRPC != "" {
+		config.grpcAddress = envGRPC
 	}
 
 	return &config, nil

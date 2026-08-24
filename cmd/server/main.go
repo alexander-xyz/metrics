@@ -17,7 +17,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/alexander-xyz/metrics/internal/audit"
+	"google.golang.org/grpc"
+
 	"github.com/alexander-xyz/metrics/internal/crypt"
+	"github.com/alexander-xyz/metrics/internal/grpcserver"
 	"github.com/alexander-xyz/metrics/internal/handler"
 	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -171,11 +174,30 @@ func RunServer(ctx context.Context, config *Config) error {
 		}
 	}()
 
+	var grpcSrv *grpc.Server
+
+	if config.grpcAddress != "" {
+		grpcSrv = grpcserver.New(store, subnet)
+
+		logger.Log.Info("starting grpc server", zap.String("address", config.grpcAddress))
+
+		go func() {
+			if err := grpcserver.Serve(grpcSrv, config.grpcAddress); err != nil {
+				failed <- err
+			}
+		}()
+	}
+
 	select {
 	case err := <-failed:
 		return fmt.Errorf("run server: %w", err)
 	case <-ctx.Done():
 		logger.Log.Info("shutdown signal received")
+	}
+
+	if grpcSrv != nil {
+		grpcSrv.GracefulStop()
+		logger.Log.Info("grpc server stopped")
 	}
 
 	return shutdown(srv, db, store, config)
