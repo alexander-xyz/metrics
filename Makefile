@@ -122,3 +122,15 @@ build:
 	   -database-dsn='$(DATABASE_DSN)' \
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
+
+14: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration14$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -database-dsn='$(DATABASE_DSN)' \
+	   -key="$$TEMP_FILE" \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
