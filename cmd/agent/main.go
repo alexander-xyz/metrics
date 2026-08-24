@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -14,6 +15,7 @@ func main() {
 	}
 
 	store := repository.NewMemStorage()
+	ctx := context.Background()
 
 	var currentPoll int64 = 0
 	var currentReport int64 = 0
@@ -24,17 +26,21 @@ func main() {
 		currentReport++
 
 		if currentPoll == config.pollInterval {
-			collectMetrics(store)
+			if err := collectMetrics(ctx, store); err != nil {
+				log.Print(err)
+			}
+
 			currentPoll = 0
 		}
 
 		if currentReport == config.reportInterval {
-			err := sendMetrics(store, config)
-			if err != nil {
+			if err := sendMetrics(ctx, store, config); err != nil {
 				log.Print(err)
 			}
 
-			store.SetCounter("PollCount", 0)
+			if err := store.SetCounter(ctx, "PollCount", 0); err != nil {
+				log.Print(err)
+			}
 			currentReport = 0
 		}
 	}

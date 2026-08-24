@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -27,20 +29,43 @@ func compress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func postMetric(url string, metric models.Metrics) error {
-	body, err := json.Marshal(metric)
+var retryDelays = []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
+
+func postBatchWithRetry(ctx context.Context, url string, metrics []models.Metrics) error {
+	err := postBatch(url, metrics)
+	if err == nil {
+		return nil
+	}
+
+	for _, delay := range retryDelays {
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(delay):
+		}
+
+		if err = postBatch(url, metrics); err == nil {
+			return nil
+		}
+	}
+
+	return err
+}
+
+func postBatch(url string, metrics []models.Metrics) error {
+	body, err := json.Marshal(metrics)
 	if err != nil {
-		return fmt.Errorf("marshal metric %s: %w", metric.ID, err)
+		return fmt.Errorf("marshal metrics: %w", err)
 	}
 
 	compressed, err := compress(body)
 	if err != nil {
-		return fmt.Errorf("compress metric %s: %w", metric.ID, err)
+		return fmt.Errorf("compress metrics: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(compressed))
 	if err != nil {
-		return fmt.Errorf("build request for metric %s: %w", metric.ID, err)
+		return fmt.Errorf("build request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -49,45 +74,43 @@ func postMetric(url string, metric models.Metrics) error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send metric %s: %w", metric.ID, err)
+		return fmt.Errorf("send metrics: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("send metric %s: unexpected status %d", metric.ID, resp.StatusCode)
+		return fmt.Errorf("send metrics: unexpected status %d", resp.StatusCode)
 	}
 
 	return nil
 }
 
-func sendMetrics(store repository.Getter, config *Config) error {
-	url := config.serverAddress + "/update"
+func sendMetrics(ctx context.Context, store repository.Getter, config *Config) error {
+	gauges, err := store.GetGauges(ctx)
+	if err != nil {
+		return fmt.Errorf("read gauges: %w", err)
+	}
 
-	for name, value := range store.GetGauges() {
+	counters, err := store.GetCounters(ctx)
+	if err != nil {
+		return fmt.Errorf("read counters: %w", err)
+	}
+
+	metrics := make([]models.Metrics, 0, len(gauges)+len(counters))
+
+	for name, value := range gauges {
 		v := float64(value)
-
-		err := postMetric(url, models.Metrics{
-			ID:    name,
-			MType: models.Gauge,
-			Value: &v,
-		})
-		if err != nil {
-			return err
-		}
+		metrics = append(metrics, models.Metrics{ID: name, MType: models.Gauge, Value: &v})
 	}
 
-	for name, value := range store.GetCounters() {
+	for name, value := range counters {
 		d := int64(value)
-
-		err := postMetric(url, models.Metrics{
-			ID:    name,
-			MType: models.Counter,
-			Delta: &d,
-		})
-		if err != nil {
-			return err
-		}
+		metrics = append(metrics, models.Metrics{ID: name, MType: models.Counter, Delta: &d})
 	}
 
-	return nil
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", metrics)
 }

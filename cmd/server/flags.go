@@ -15,6 +15,7 @@ type Config struct {
 	storeInterval   int64
 	fileStoragePath string
 	restore         bool
+	databaseDSN     string
 }
 
 func parseFlags() (*Config, error) {
@@ -25,6 +26,7 @@ func parseFlags() (*Config, error) {
 	flag.Int64Var(&config.storeInterval, "i", 300, "store interval in seconds, 0 makes writes synchronous")
 	flag.StringVar(&config.fileStoragePath, "f", defaultStoragePath, "path to the metrics storage file")
 	flag.BoolVar(&config.restore, "r", true, "restore metrics from the storage file on start")
+	flag.StringVar(&config.databaseDSN, "d", "", "database connection string")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -55,6 +57,10 @@ func parseFlags() (*Config, error) {
 		}
 
 		config.restore = value
+	}
+
+	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
+		config.databaseDSN = envDatabaseDSN
 	}
 
 	return &config, nil
