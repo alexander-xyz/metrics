@@ -140,3 +140,6 @@ statictest:
 
 cover40:
 	./.tools/covertest -test.v -test.run=^TestCoverage40$$
+
+fmt:
+	gofmt -l -w .
