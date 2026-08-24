@@ -12,6 +12,7 @@ type Config struct {
 	serverAddress  string
 	pollInterval   int64
 	reportInterval int64
+	key            string
 }
 
 func parseFlags() (*Config, error) {
@@ -22,6 +23,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.Int64Var(&config.reportInterval, "r", 10, "report interval in seconds")
 	flag.Int64Var(&config.pollInterval, "p", 2, "update poll interval in seconds")
+	flag.StringVar(&config.key, "k", "", "key for request signature")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -44,6 +46,10 @@ func parseFlags() (*Config, error) {
 		}
 
 		config.pollInterval = value
+	}
+
+	if envKey := os.Getenv("KEY"); envKey != "" {
+		config.key = envKey
 	}
 
 	if !strings.HasPrefix(flagRunAddr, "http") {

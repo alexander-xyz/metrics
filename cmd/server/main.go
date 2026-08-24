@@ -102,7 +102,7 @@ func RunServer(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	router, err := handler.GetRouter(store, db)
+	router, err := handler.GetRouter(store, db, config.key)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

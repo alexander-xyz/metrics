@@ -11,6 +11,7 @@ import (
 
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
+	"github.com/alexander-xyz/metrics/internal/signature"
 )
 
 func compress(data []byte) ([]byte, error) {
@@ -31,8 +32,8 @@ func compress(data []byte) ([]byte, error) {
 
 var retryDelays = []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
 
-func postBatchWithRetry(ctx context.Context, url string, metrics []models.Metrics) error {
-	err := postBatch(url, metrics)
+func postBatchWithRetry(ctx context.Context, url, key string, metrics []models.Metrics) error {
+	err := postBatch(url, key, metrics)
 	if err == nil {
 		return nil
 	}
@@ -44,7 +45,7 @@ func postBatchWithRetry(ctx context.Context, url string, metrics []models.Metric
 		case <-time.After(delay):
 		}
 
-		if err = postBatch(url, metrics); err == nil {
+		if err = postBatch(url, key, metrics); err == nil {
 			return nil
 		}
 	}
@@ -52,7 +53,7 @@ func postBatchWithRetry(ctx context.Context, url string, metrics []models.Metric
 	return err
 }
 
-func postBatch(url string, metrics []models.Metrics) error {
+func postBatch(url, key string, metrics []models.Metrics) error {
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("marshal metrics: %w", err)
@@ -71,6 +72,10 @@ func postBatch(url string, metrics []models.Metrics) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept-Encoding", "gzip")
+
+	if key != "" {
+		req.Header.Set(signature.Header, signature.Sign(compressed, key))
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -112,5 +117,5 @@ func sendMetrics(ctx context.Context, store repository.Getter, config *Config) e
 		return nil
 	}
 
-	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", metrics)
+	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", config.key, metrics)
 }

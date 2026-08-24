@@ -15,7 +15,7 @@ type Storage interface {
 	repository.Getter
 }
 
-func GetRouter(store Storage, db *sql.DB) (*chi.Mux, error) {
+func GetRouter(store Storage, db *sql.DB, key string) (*chi.Mux, error) {
 	metricsHandler, err := GetMetricsHandler(store)
 	if err != nil {
 		return nil, fmt.Errorf("build metrics handler: %w", err)
@@ -23,6 +23,7 @@ func GetRouter(store Storage, db *sql.DB) (*chi.Mux, error) {
 
 	r := chi.NewRouter()
 	r.Use(logger.RequestLogger)
+	r.Use(logger.SignatureMiddleware(key))
 	r.Use(logger.GzipMiddleware)
 	r.Get("/", metricsHandler)
 	r.Get("/value/{type}/{id}", GetMetricHandler(store))

@@ -16,6 +16,7 @@ type Config struct {
 	fileStoragePath string
 	restore         bool
 	databaseDSN     string
+	key             string
 }
 
 func parseFlags() (*Config, error) {
@@ -27,6 +28,7 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.fileStoragePath, "f", defaultStoragePath, "path to the metrics storage file")
 	flag.BoolVar(&config.restore, "r", true, "restore metrics from the storage file on start")
 	flag.StringVar(&config.databaseDSN, "d", "", "database connection string")
+	flag.StringVar(&config.key, "k", "", "key for request signature")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -61,6 +63,10 @@ func parseFlags() (*Config, error) {
 
 	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
 		config.databaseDSN = envDatabaseDSN
+	}
+
+	if envKey := os.Getenv("KEY"); envKey != "" {
+		config.key = envKey
 	}
 
 	return &config, nil
