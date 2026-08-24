@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -9,7 +10,12 @@ import (
 )
 
 func RunServer(store handler.Storage, config *Config) error {
-	return http.ListenAndServe(config.serverAddress, handler.GetRouter(store))
+	router, err := handler.GetRouter(store)
+	if err != nil {
+		return fmt.Errorf("build router: %w", err)
+	}
+
+	return http.ListenAndServe(config.serverAddress, router)
 }
 
 func main() {

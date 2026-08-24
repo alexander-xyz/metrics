@@ -8,11 +8,15 @@ import (
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateMetricHandler(t *testing.T) {
 	store := repository.NewMemStorage()
-	srv := httptest.NewServer(GetRouter(store))
+	router, err := GetRouter(store)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(router)
 	defer srv.Close()
 
 	testCases := []struct {

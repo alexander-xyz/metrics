@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -92,11 +93,7 @@ func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 	}
 }
 
-func GetMetricsHandler(store repository.Getter) http.HandlerFunc {
-	return func(res http.ResponseWriter, req *http.Request) {
-		res.Header().Set("Content-type", "text/html")
-
-		const tpl = `
+const metricsPageTpl = `
 			<!DOCTYPE html>
 			<html>
 				<head>
@@ -118,6 +115,15 @@ func GetMetricsHandler(store repository.Getter) http.HandlerFunc {
 				</body>
 			</html>`
 
+func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
+	t, err := template.New("webpage").Parse(metricsPageTpl)
+	if err != nil {
+		return nil, fmt.Errorf("parse metrics page template: %w", err)
+	}
+
+	return func(res http.ResponseWriter, req *http.Request) {
+		res.Header().Set("Content-type", "text/html")
+
 		data := struct {
 			Title    string
 			Gauges   map[string]repository.Gauge
@@ -128,15 +134,9 @@ func GetMetricsHandler(store repository.Getter) http.HandlerFunc {
 			Counters: store.GetCounters(),
 		}
 
-		t, err := template.New("webpage").Parse(tpl)
-
-		if err != nil {
-			log.Fatal(err)
+		if err := t.Execute(res, data); err != nil {
+			log.Print(err)
+			http.Error(res, "internal server error", http.StatusInternalServerError)
 		}
-
-		err = t.Execute(res, data)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	}, nil
 }
