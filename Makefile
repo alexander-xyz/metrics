@@ -140,13 +140,20 @@ build:
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
 
-.PHONY: generate staticlint
+.PHONY: proto generate staticlint
+proto:
+	protoc --proto_path=internal/proto \
+		--go_out=internal/proto --go_opt=paths=source_relative \
+		--go-grpc_out=internal/proto --go-grpc_opt=paths=source_relative \
+		internal/proto/metrics.proto
+
 generate:
 	go run ./cmd/reset
 
+# internal/proto исключён: файлы в нём генерирует protoc, править их нельзя.
 staticlint:
 	go build -o cmd/staticlint/staticlint ./cmd/staticlint
-	./cmd/staticlint/staticlint ./...
+	./cmd/staticlint/staticlint $$(go list ./... | grep -v /internal/proto)
 
 statictest:
 	go vet -vettool=$$(pwd)/.tools/statictest ./...
@@ -156,6 +163,9 @@ cover40:
 
 cover55:
 	./.tools/covertest -test.v -test.run=^TestCoverage55$$
+
+cover70:
+	./.tools/covertest -test.v -test.run=^TestCoverage70$$
 
 fmt:
 	gofmt -l -w .

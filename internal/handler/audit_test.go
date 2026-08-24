@@ -21,7 +21,7 @@ func (a *auditorStub) Notify(event audit.Event) {
 
 func TestAuditOnMetricUpdates(t *testing.T) {
 	auditor := &auditorStub{}
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", auditor, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", auditor, nil, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(router)
@@ -57,7 +57,7 @@ func TestAuditOnMetricUpdates(t *testing.T) {
 
 func TestAuditSkippedOnFailedUpdate(t *testing.T) {
 	auditor := &auditorStub{}
-	router, err := GetRouter(repository.NewMemStorage(), nil, "", auditor, nil)
+	router, err := GetRouter(repository.NewMemStorage(), nil, "", auditor, nil, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(router)

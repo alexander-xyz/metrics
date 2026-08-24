@@ -96,7 +96,7 @@ func TestWorkerResetsPollCount(t *testing.T) {
 	wg.Add(1)
 
 	config := &Config{serverAddress: srv.URL}
-	worker(ctx, jobs, store, config, nil, &wg)
+	worker(ctx, jobs, store, config, nil, nil, &wg)
 	wg.Wait()
 
 	counter, err := store.GetCounter(ctx, "PollCount")
@@ -148,7 +148,7 @@ func TestWorkerKeepsCounterWhenSendFails(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	worker(ctx, jobs, store, &Config{serverAddress: srv.URL}, nil, &wg)
+	worker(ctx, jobs, store, &Config{serverAddress: srv.URL}, nil, nil, &wg)
 	wg.Wait()
 
 	counter, err := store.GetCounter(context.Background(), "PollCount")

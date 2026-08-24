@@ -74,11 +74,11 @@ func report(ctx context.Context, store repository.Getter, jobs chan<- []models.M
 	}
 }
 
-func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, publicKey *rsa.PublicKey, wg *sync.WaitGroup) {
+func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, publicKey *rsa.PublicKey, sender *grpcSender, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for batch := range jobs {
-		if err := sendBatch(ctx, batch, config, publicKey); err != nil {
+		if err := send(ctx, batch, config, publicKey, sender); err != nil {
 			log.Print(err)
 			continue
 		}
@@ -87,6 +87,29 @@ func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.
 			log.Print(err)
 		}
 	}
+}
+
+// sendTimeout ограничивает отправку батча, который дошёл до воркера
+// после сигнала остановки.
+const sendTimeout = 5 * time.Second
+
+// send отправляет батч метрик выбранным транспортом: по gRPC, если он
+// настроен, иначе по HTTP. Если контекст уже отменён сигналом остановки,
+// отправка выполняется с собственным таймаутом: накопленные метрики
+// нужно передать серверу до выхода.
+func send(ctx context.Context, batch []models.Metrics, config *Config, publicKey *rsa.PublicKey, sender *grpcSender) error {
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), sendTimeout)
+		defer cancel()
+	}
+
+	if sender != nil {
+		return sender.Send(ctx, batch)
+	}
+
+	return sendBatch(ctx, batch, config, publicKey)
 }
 
 // flush ставит в очередь метрики, собранные к моменту остановки,
@@ -130,6 +153,19 @@ func main() {
 		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
 
+	var sender *grpcSender
+
+	if config.grpcAddress != "" {
+		sender, err = newGRPCSender(config.grpcAddress)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer sender.Close()
+
+		log.Printf("sending metrics over grpc to %s", config.grpcAddress)
+	}
+
 	store := repository.NewMemStorage()
 	jobs := make(chan []models.Metrics, config.rateLimit)
 
@@ -138,7 +174,7 @@ func main() {
 	for i := int64(0); i < config.rateLimit; i++ {
 		wg.Add(1)
 
-		go worker(ctx, jobs, store, config, publicKey, &wg)
+		go worker(ctx, jobs, store, config, publicKey, sender, &wg)
 	}
 
 	go pollRuntime(ctx, store, time.Duration(config.pollInterval)*time.Second)
