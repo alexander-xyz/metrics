@@ -8,6 +8,7 @@ import (
 	"github.com/alexander-xyz/metrics/internal/audit"
 )
 
+// Auditor принимает события аудита от хендлеров.
 type Auditor interface {
 	Notify(event audit.Event)
 }

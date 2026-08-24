@@ -7,6 +7,8 @@ import (
 
 var retryDelays = []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
 
+// WithRetry выполняет операцию и повторяет её при повторяемой ошибке
+// с паузами 1, 3 и 5 секунд.
 func WithRetry(ctx context.Context, operation func() error) error {
 	classifier := NewPostgresErrorClassifier()
 

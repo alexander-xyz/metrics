@@ -1,3 +1,4 @@
+// Package models описывает представление метрики в JSON-формате.
 package models
 
 const (

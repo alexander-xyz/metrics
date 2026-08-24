@@ -7,20 +7,25 @@ import (
 	"sync"
 )
 
+// FileObserver дописывает события аудита в файл, по одному в строке.
 type FileObserver struct {
 	path    string
 	onError func(error)
 	mu      sync.Mutex
 }
 
+// NewFileObserver создаёт файловый приёмник аудита.
+// Ошибки записи передаются в onError.
 func NewFileObserver(path string, onError func(error)) *FileObserver {
 	return &FileObserver{path: path, onError: onError}
 }
 
+// ID возвращает идентификатор приёмника.
 func (o *FileObserver) ID() string {
 	return "file:" + o.path
 }
 
+// Update записывает событие аудита в файл.
 func (o *FileObserver) Update(event Event) {
 	if err := o.write(event); err != nil && o.onError != nil {
 		o.onError(err)

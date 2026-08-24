@@ -14,6 +14,7 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// Migrate применяет к базе данных все миграции, вшитые в бинарный файл.
 func Migrate(db *sql.DB) error {
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {

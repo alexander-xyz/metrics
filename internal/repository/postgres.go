@@ -10,10 +10,12 @@ import (
 	"github.com/alexander-xyz/metrics/internal/pgerrors"
 )
 
+// PostgresStorage хранит метрики в базе данных PostgreSQL.
 type PostgresStorage struct {
 	db *sql.DB
 }
 
+// NewPostgresStorage создаёт хранилище метрик поверх соединения с базой данных.
 func NewPostgresStorage(db *sql.DB) *PostgresStorage {
 	return &PostgresStorage{db: db}
 }

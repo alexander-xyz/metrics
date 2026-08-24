@@ -1,3 +1,4 @@
+// Package storage сохраняет метрики в файл и применяет миграции базы данных.
 package storage
 
 import (
@@ -12,12 +13,14 @@ import (
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
+// Storage объединяет операции хранилища, необходимые для синхронной записи в файл.
 type Storage interface {
 	repository.Updater
 	repository.BatchUpdater
 	repository.Getter
 }
 
+// Save записывает все метрики хранилища в файл по указанному пути.
 func Save(ctx context.Context, store repository.Getter, path string) error {
 	gauges, err := store.GetGauges(ctx)
 	if err != nil {
@@ -53,6 +56,8 @@ func Save(ctx context.Context, store repository.Getter, path string) error {
 	return nil
 }
 
+// Load восстанавливает метрики из файла по указанному пути.
+// Отсутствие файла не считается ошибкой.
 func Load(ctx context.Context, store repository.Updater, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -88,12 +93,16 @@ func Load(ctx context.Context, store repository.Updater, path string) error {
 	return nil
 }
 
+// SyncStorage — обёртка над хранилищем, сохраняющая метрики в файл
+// сразу после каждого изменения.
 type SyncStorage struct {
 	Storage
 	path  string
 	onErr func(error)
 }
 
+// NewSyncStorage создаёт хранилище с синхронной записью в файл.
+// Ошибки записи передаются в onErr.
 func NewSyncStorage(store Storage, path string, onErr func(error)) *SyncStorage {
 	return &SyncStorage{Storage: store, path: path, onErr: onErr}
 }

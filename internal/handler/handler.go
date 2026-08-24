@@ -1,3 +1,4 @@
+// Package handler содержит HTTP-хендлеры сервера метрик и сборку роутера.
 package handler
 
 import (
@@ -16,6 +17,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// UpdateMetricHandler возвращает хендлер приёма метрики из параметров пути:
+// POST /update/{type}/{id}/{value}. Поддерживаются типы gauge и counter.
 func UpdateMetricHandler(store repository.Updater, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/plain")
@@ -72,6 +75,8 @@ func UpdateMetricHandler(store repository.Updater, auditor Auditor) http.Handler
 	}
 }
 
+// GetMetricHandler возвращает хендлер чтения значения метрики:
+// GET /value/{type}/{id}. Если метрики нет, отвечает 404.
 func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/plain")
@@ -135,6 +140,8 @@ const metricsPageTpl = `
 				</body>
 			</html>`
 
+// GetMetricsHandler возвращает хендлер главной страницы со списком всех метрик
+// в виде HTML-таблицы. Шаблон разбирается один раз при создании хендлера.
 func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
 	t, err := template.New("webpage").Parse(metricsPageTpl)
 	if err != nil {
@@ -206,6 +213,8 @@ func writeMetric(res http.ResponseWriter, metric models.Metrics) {
 	}
 }
 
+// UpdateMetricJSONHandler возвращает хендлер приёма одной метрики в формате JSON:
+// POST /update. В ответе отдаётся сохранённое значение метрики.
 func UpdateMetricJSONHandler(store Storage, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metric, ok := decodeMetric(res, req)
@@ -265,6 +274,8 @@ func UpdateMetricJSONHandler(store Storage, auditor Auditor) http.HandlerFunc {
 	}
 }
 
+// GetMetricJSONHandler возвращает хендлер чтения метрики в формате JSON:
+// POST /value. Тело запроса содержит идентификатор и тип метрики.
 func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metric, ok := decodeMetric(res, req)
@@ -298,6 +309,7 @@ func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 	}
 }
 
+// PingHandler возвращает хендлер проверки соединения с базой данных: GET /ping.
 func PingHandler(db *sql.DB) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if db == nil {
@@ -319,6 +331,8 @@ func PingHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+// UpdateMetricsJSONHandler возвращает хендлер приёма пакета метрик:
+// POST /updates. Метрики сохраняются одной транзакцией.
 func UpdateMetricsJSONHandler(store Storage, auditor Auditor) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var metrics []models.Metrics

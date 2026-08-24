@@ -1,27 +1,35 @@
+// Package audit реализует аудит запросов по паттерну «Наблюдатель»:
+// издатель рассылает события аудита всем подписанным приёмникам.
 package audit
 
 import "sync"
 
+// Event — событие аудита обработанного запроса.
 type Event struct {
 	Timestamp int64    `json:"ts"`
 	Metrics   []string `json:"metrics"`
 	IPAddress string   `json:"ip_address"`
 }
 
+// Observer — приёмник событий аудита.
 type Observer interface {
 	Update(event Event)
 	ID() string
 }
 
+// Publisher рассылает события аудита подписанным приёмникам
+// и безопасен для конкурентного использования.
 type Publisher struct {
 	mu        sync.RWMutex
 	observers map[string]Observer
 }
 
+// NewPublisher создаёт издателя без подписчиков.
 func NewPublisher() *Publisher {
 	return &Publisher{observers: make(map[string]Observer)}
 }
 
+// Register подписывает приёмник на события аудита.
 func (p *Publisher) Register(observer Observer) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -29,6 +37,7 @@ func (p *Publisher) Register(observer Observer) {
 	p.observers[observer.ID()] = observer
 }
 
+// Deregister отписывает приёмник от событий аудита.
 func (p *Publisher) Deregister(observer Observer) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -36,6 +45,7 @@ func (p *Publisher) Deregister(observer Observer) {
 	delete(p.observers, observer.ID())
 }
 
+// Notify рассылает событие всем подписанным приёмникам.
 func (p *Publisher) Notify(event Event) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

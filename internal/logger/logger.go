@@ -1,3 +1,5 @@
+// Package logger содержит журналирование запросов и HTTP-middleware сервера:
+// логирование, gzip-сжатие и проверку подписи.
 package logger
 
 import (
@@ -7,8 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// Log — журнал приложения. До вызова Initialize ничего не пишет.
 var Log *zap.Logger = zap.NewNop()
 
+// Initialize настраивает журнал приложения на заданный уровень записи.
 func Initialize(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 	if err != nil {
@@ -50,6 +54,8 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode
 }
 
+// RequestLogger — middleware, записывающее в журнал метод, URI, длительность,
+// код ответа и размер тела каждого запроса.
 func RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

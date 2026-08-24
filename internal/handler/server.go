@@ -11,12 +11,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// Storage объединяет операции хранилища, необходимые серверу метрик.
 type Storage interface {
 	repository.Updater
 	repository.BatchUpdater
 	repository.Getter
 }
 
+// GetRouter собирает маршрутизатор сервера метрик со всеми хендлерами
+// и middleware: логированием, проверкой подписи и gzip-сжатием.
+// Аргумент auditor может быть nil — тогда аудит запросов отключён.
 func GetRouter(store Storage, db *sql.DB, key string, auditor Auditor) (*chi.Mux, error) {
 	metricsHandler, err := GetMetricsHandler(store)
 	if err != nil {

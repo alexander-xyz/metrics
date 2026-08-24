@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// HTTPObserver отправляет события аудита на удалённый сервер методом POST.
 type HTTPObserver struct {
 	url    string
 	client *http.Client
@@ -15,6 +16,8 @@ type HTTPObserver struct {
 	onError func(error)
 }
 
+// NewHTTPObserver создаёт удалённый приёмник аудита.
+// Ошибки отправки передаются в onError.
 func NewHTTPObserver(url string, onError func(error)) *HTTPObserver {
 	return &HTTPObserver{
 		url:     url,
@@ -23,10 +26,12 @@ func NewHTTPObserver(url string, onError func(error)) *HTTPObserver {
 	}
 }
 
+// ID возвращает идентификатор приёмника.
 func (o *HTTPObserver) ID() string {
 	return "url:" + o.url
 }
 
+// Update отправляет событие аудита на удалённый сервер.
 func (o *HTTPObserver) Update(event Event) {
 	if err := o.send(event); err != nil && o.onError != nil {
 		o.onError(err)

@@ -1,3 +1,4 @@
+// Package repository содержит хранилища метрик: в памяти и в PostgreSQL.
 package repository
 
 import (
@@ -8,21 +9,28 @@ import (
 	models "github.com/alexander-xyz/metrics/internal/model"
 )
 
+// ErrNotFound возвращается, когда запрошенной метрики нет в хранилище.
 var ErrNotFound = errors.New("metric not found")
 
+// Gauge — метрика типа gauge: новое значение замещает предыдущее.
 type Gauge float64
+
+// Counter — метрика типа counter: новое значение прибавляется к предыдущему.
 type Counter int64
 
+// Updater сохраняет значения отдельных метрик.
 type Updater interface {
 	UpdateGauge(ctx context.Context, name string, value Gauge) error
 	UpdateCounter(ctx context.Context, name string, value Counter) error
 	SetCounter(ctx context.Context, name string, value Counter) error
 }
 
+// BatchUpdater сохраняет пакет метрик за одну операцию.
 type BatchUpdater interface {
 	UpdateBatch(ctx context.Context, metrics []models.Metrics) error
 }
 
+// Getter читает значения метрик из хранилища.
 type Getter interface {
 	GetGauges(ctx context.Context) (map[string]Gauge, error)
 	GetGauge(ctx context.Context, name string) (Gauge, error)
@@ -30,12 +38,14 @@ type Getter interface {
 	GetCounter(ctx context.Context, name string) (Counter, error)
 }
 
+// MemStorage хранит метрики в памяти и безопасен для конкурентного доступа.
 type MemStorage struct {
 	mu       sync.RWMutex
 	gauges   map[string]Gauge
 	counters map[string]Counter
 }
 
+// NewMemStorage создаёт пустое хранилище метрик в памяти.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		gauges:   map[string]Gauge{},
@@ -43,6 +53,7 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+// UpdateGauge замещает значение gauge-метрики.
 func (store *MemStorage) UpdateGauge(_ context.Context, name string, value Gauge) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -52,6 +63,7 @@ func (store *MemStorage) UpdateGauge(_ context.Context, name string, value Gauge
 	return nil
 }
 
+// UpdateCounter прибавляет значение к counter-метрике.
 func (store *MemStorage) UpdateCounter(_ context.Context, name string, value Counter) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -61,6 +73,7 @@ func (store *MemStorage) UpdateCounter(_ context.Context, name string, value Cou
 	return nil
 }
 
+// SetCounter присваивает counter-метрике точное значение.
 func (store *MemStorage) SetCounter(_ context.Context, name string, value Counter) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -70,6 +83,7 @@ func (store *MemStorage) SetCounter(_ context.Context, name string, value Counte
 	return nil
 }
 
+// GetGauge возвращает значение gauge-метрики или ErrNotFound.
 func (store *MemStorage) GetGauge(_ context.Context, name string) (Gauge, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
@@ -82,6 +96,7 @@ func (store *MemStorage) GetGauge(_ context.Context, name string) (Gauge, error)
 	return value, nil
 }
 
+// GetGauges возвращает копию всех gauge-метрик.
 func (store *MemStorage) GetGauges(_ context.Context) (map[string]Gauge, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
@@ -94,6 +109,7 @@ func (store *MemStorage) GetGauges(_ context.Context) (map[string]Gauge, error) 
 	return gauges, nil
 }
 
+// GetCounter возвращает значение counter-метрики или ErrNotFound.
 func (store *MemStorage) GetCounter(_ context.Context, name string) (Counter, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
@@ -106,6 +122,7 @@ func (store *MemStorage) GetCounter(_ context.Context, name string) (Counter, er
 	return value, nil
 }
 
+// GetCounters возвращает копию всех counter-метрик.
 func (store *MemStorage) GetCounters(_ context.Context) (map[string]Counter, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
@@ -118,6 +135,7 @@ func (store *MemStorage) GetCounters(_ context.Context) (map[string]Counter, err
 	return counters, nil
 }
 
+// UpdateBatch сохраняет пакет метрик: gauge замещаются, counter суммируются.
 func (store *MemStorage) UpdateBatch(_ context.Context, metrics []models.Metrics) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
