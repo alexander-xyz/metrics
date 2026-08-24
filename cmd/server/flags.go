@@ -17,6 +17,8 @@ type Config struct {
 	restore         bool
 	databaseDSN     string
 	key             string
+	auditFile       string
+	auditURL        string
 }
 
 func parseFlags() (*Config, error) {
@@ -29,6 +31,8 @@ func parseFlags() (*Config, error) {
 	flag.BoolVar(&config.restore, "r", true, "restore metrics from the storage file on start")
 	flag.StringVar(&config.databaseDSN, "d", "", "database connection string")
 	flag.StringVar(&config.key, "k", "", "key for request signature")
+	flag.StringVar(&config.auditFile, "audit-file", "", "path to the audit log file")
+	flag.StringVar(&config.auditURL, "audit-url", "", "url of the remote audit receiver")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -67,6 +71,14 @@ func parseFlags() (*Config, error) {
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
 		config.key = envKey
+	}
+
+	if envAuditFile := os.Getenv("AUDIT_FILE"); envAuditFile != "" {
+		config.auditFile = envAuditFile
+	}
+
+	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
+		config.auditURL = envAuditURL
 	}
 
 	return &config, nil
