@@ -171,3 +171,64 @@ func TestGetMetricJSONHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateMetricsJSONHandler(t *testing.T) {
+	store := repository.NewMemStorage()
+	router, err := GetRouter(store, nil)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	testCases := []struct {
+		name         string
+		body         string
+		expectedCode int
+	}{
+		{
+			name:         "batch of two",
+			body:         `[{"id":"Alloc","type":"gauge","value":1.5},{"id":"PollCount","type":"counter","delta":4}]`,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "counter accumulates across batches",
+			body:         `[{"id":"PollCount","type":"counter","delta":6}]`,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "empty batch rejected",
+			body:         `[]`,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "unknown type rejected",
+			body:         `[{"id":"Alloc","type":"histogram","value":1}]`,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "empty name rejected",
+			body:         `[{"id":"","type":"gauge","value":1}]`,
+			expectedCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := resty.New().R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(tc.body).
+				Post(srv.URL + "/updates/")
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedCode, resp.StatusCode())
+		})
+	}
+
+	gauge, err := store.GetGauge(context.Background(), "Alloc")
+	require.NoError(t, err)
+	assert.Equal(t, repository.Gauge(1.5), gauge)
+
+	counter, err := store.GetCounter(context.Background(), "PollCount")
+	require.NoError(t, err)
+	assert.Equal(t, repository.Counter(10), counter)
+}

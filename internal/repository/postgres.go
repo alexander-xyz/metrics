@@ -152,3 +152,54 @@ func (store *PostgresStorage) GetCounters(ctx context.Context) (map[string]Count
 
 	return counters, nil
 }
+
+func (store *PostgresStorage) UpdateBatch(ctx context.Context, metrics []models.Metrics) error {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	gauge, err := tx.PrepareContext(ctx, `
+		INSERT INTO metrics (id, mtype, value) VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, value = EXCLUDED.value`)
+	if err != nil {
+		return fmt.Errorf("prepare gauge statement: %w", err)
+	}
+	defer gauge.Close()
+
+	counter, err := tx.PrepareContext(ctx, `
+		INSERT INTO metrics (id, mtype, delta) VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, delta = metrics.delta + EXCLUDED.delta`)
+	if err != nil {
+		return fmt.Errorf("prepare counter statement: %w", err)
+	}
+	defer counter.Close()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value == nil {
+				continue
+			}
+
+			if _, err := gauge.ExecContext(ctx, metric.ID, models.Gauge, *metric.Value); err != nil {
+				return fmt.Errorf("batch update gauge %s: %w", metric.ID, err)
+			}
+		case models.Counter:
+			if metric.Delta == nil {
+				continue
+			}
+
+			if _, err := counter.ExecContext(ctx, metric.ID, models.Counter, *metric.Delta); err != nil {
+				return fmt.Errorf("batch update counter %s: %w", metric.ID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}

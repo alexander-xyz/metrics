@@ -308,3 +308,45 @@ func PingHandler(db *sql.DB) http.HandlerFunc {
 		res.WriteHeader(http.StatusOK)
 	}
 }
+
+func UpdateMetricsJSONHandler(store Storage) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		var metrics []models.Metrics
+
+		if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+			http.Error(res, "cannot decode request body", http.StatusBadRequest)
+			return
+		}
+
+		if len(metrics) == 0 {
+			http.Error(res, "empty batch", http.StatusBadRequest)
+			return
+		}
+
+		for _, metric := range metrics {
+			if metric.MType != models.Gauge && metric.MType != models.Counter {
+				http.Error(res, "unsupported metric type", http.StatusBadRequest)
+				return
+			}
+
+			if metric.ID == "" {
+				http.Error(res, "empty metric name", http.StatusNotFound)
+				return
+			}
+		}
+
+		if err := store.UpdateBatch(req.Context(), metrics); err != nil {
+			log.Print(err)
+			http.Error(res, "cannot store metrics", http.StatusInternalServerError)
+
+			return
+		}
+
+		res.Header().Set("Content-Type", "application/json")
+		res.WriteHeader(http.StatusOK)
+
+		if _, err := res.Write([]byte(`{"status":"ok"}`)); err != nil {
+			log.Print(err)
+		}
+	}
+}

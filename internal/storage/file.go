@@ -14,6 +14,7 @@ import (
 
 type Storage interface {
 	repository.Updater
+	repository.BatchUpdater
 	repository.Getter
 }
 
@@ -125,6 +126,16 @@ func (s *SyncStorage) UpdateCounter(ctx context.Context, name string, value repo
 
 func (s *SyncStorage) SetCounter(ctx context.Context, name string, value repository.Counter) error {
 	if err := s.Storage.SetCounter(ctx, name, value); err != nil {
+		return err
+	}
+
+	s.save(ctx)
+
+	return nil
+}
+
+func (s *SyncStorage) UpdateBatch(ctx context.Context, metrics []models.Metrics) error {
+	if err := s.Storage.UpdateBatch(ctx, metrics); err != nil {
 		return err
 	}
 

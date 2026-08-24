@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	models "github.com/alexander-xyz/metrics/internal/model"
 )
 
 var ErrNotFound = errors.New("metric not found")
@@ -15,6 +17,10 @@ type Updater interface {
 	UpdateGauge(ctx context.Context, name string, value Gauge) error
 	UpdateCounter(ctx context.Context, name string, value Counter) error
 	SetCounter(ctx context.Context, name string, value Counter) error
+}
+
+type BatchUpdater interface {
+	UpdateBatch(ctx context.Context, metrics []models.Metrics) error
 }
 
 type Getter interface {
@@ -110,4 +116,24 @@ func (store *MemStorage) GetCounters(_ context.Context) (map[string]Counter, err
 	}
 
 	return counters, nil
+}
+
+func (store *MemStorage) UpdateBatch(_ context.Context, metrics []models.Metrics) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value != nil {
+				store.gauges[metric.ID] = Gauge(*metric.Value)
+			}
+		case models.Counter:
+			if metric.Delta != nil {
+				store.counters[metric.ID] += Counter(*metric.Delta)
+			}
+		}
+	}
+
+	return nil
 }

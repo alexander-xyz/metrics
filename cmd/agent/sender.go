@@ -28,20 +28,20 @@ func compress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func postMetric(url string, metric models.Metrics) error {
-	body, err := json.Marshal(metric)
+func postBatch(url string, metrics []models.Metrics) error {
+	body, err := json.Marshal(metrics)
 	if err != nil {
-		return fmt.Errorf("marshal metric %s: %w", metric.ID, err)
+		return fmt.Errorf("marshal metrics: %w", err)
 	}
 
 	compressed, err := compress(body)
 	if err != nil {
-		return fmt.Errorf("compress metric %s: %w", metric.ID, err)
+		return fmt.Errorf("compress metrics: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(compressed))
 	if err != nil {
-		return fmt.Errorf("build request for metric %s: %w", metric.ID, err)
+		return fmt.Errorf("build request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -50,20 +50,18 @@ func postMetric(url string, metric models.Metrics) error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send metric %s: %w", metric.ID, err)
+		return fmt.Errorf("send metrics: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("send metric %s: unexpected status %d", metric.ID, resp.StatusCode)
+		return fmt.Errorf("send metrics: unexpected status %d", resp.StatusCode)
 	}
 
 	return nil
 }
 
 func sendMetrics(ctx context.Context, store repository.Getter, config *Config) error {
-	url := config.serverAddress + "/update"
-
 	gauges, err := store.GetGauges(ctx)
 	if err != nil {
 		return fmt.Errorf("read gauges: %w", err)
@@ -74,29 +72,21 @@ func sendMetrics(ctx context.Context, store repository.Getter, config *Config) e
 		return fmt.Errorf("read counters: %w", err)
 	}
 
+	metrics := make([]models.Metrics, 0, len(gauges)+len(counters))
+
 	for name, value := range gauges {
 		v := float64(value)
-
-		if err := postMetric(url, models.Metrics{
-			ID:    name,
-			MType: models.Gauge,
-			Value: &v,
-		}); err != nil {
-			return err
-		}
+		metrics = append(metrics, models.Metrics{ID: name, MType: models.Gauge, Value: &v})
 	}
 
 	for name, value := range counters {
 		d := int64(value)
-
-		if err := postMetric(url, models.Metrics{
-			ID:    name,
-			MType: models.Counter,
-			Delta: &d,
-		}); err != nil {
-			return err
-		}
+		metrics = append(metrics, models.Metrics{ID: name, MType: models.Counter, Delta: &d})
 	}
 
-	return nil
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	return postBatch(config.serverAddress+"/updates/", metrics)
 }

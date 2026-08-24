@@ -11,6 +11,7 @@ import (
 
 type Storage interface {
 	repository.Updater
+	repository.BatchUpdater
 	repository.Getter
 }
 
@@ -30,6 +31,8 @@ func GetRouter(store Storage, db *sql.DB) (*chi.Mux, error) {
 	r.Post("/update/", UpdateMetricJSONHandler(store))
 	r.Post("/value", GetMetricJSONHandler(store))
 	r.Post("/value/", GetMetricJSONHandler(store))
+	r.Post("/updates", UpdateMetricsJSONHandler(store))
+	r.Post("/updates/", UpdateMetricsJSONHandler(store))
 	r.Get("/ping", PingHandler(db))
 
 	return r, nil
