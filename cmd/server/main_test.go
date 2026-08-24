@@ -123,3 +123,65 @@ func TestBuildStorageRejectsBrokenFile(t *testing.T) {
 	_, err := buildStorage(context.Background(), nil, &Config{fileStoragePath: path, restore: true})
 	assert.Error(t, err)
 }
+
+func TestShutdownSavesMetrics(t *testing.T) {
+	require.NoError(t, logger.Initialize("info"))
+
+	path := filepath.Join(t.TempDir(), "metrics.json")
+	ctx := context.Background()
+
+	store := repository.NewMemStorage()
+	require.NoError(t, store.UpdateGauge(ctx, "Alloc", 777))
+
+	srv := &http.Server{Addr: "localhost:0"}
+	config := &Config{fileStoragePath: path, storeInterval: 3600}
+
+	require.NoError(t, shutdown(srv, nil, store, config))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "Alloc", "несохранённые метрики записаны при остановке")
+}
+
+func TestShutdownSkipsSaveWithDatabase(t *testing.T) {
+	require.NoError(t, logger.Initialize("info"))
+
+	path := filepath.Join(t.TempDir(), "metrics.json")
+
+	db, err := openDatabase("postgres://user:pass@localhost:5432/db?sslmode=disable")
+	require.NoError(t, err)
+
+	defer db.Close()
+
+	srv := &http.Server{Addr: "localhost:0"}
+	config := &Config{fileStoragePath: path}
+
+	require.NoError(t, shutdown(srv, db, repository.NewMemStorage(), config))
+
+	_, err = os.Stat(path)
+	assert.True(t, os.IsNotExist(err), "с базой данных файл не создаётся")
+}
+
+func TestRunServerStopsOnContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	config := &Config{
+		serverAddress: "localhost:0",
+		logLevel:      "info",
+		storeInterval: 3600,
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- RunServer(ctx, config) }()
+
+	time.Sleep(300 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("сервер не завершился после отмены контекста")
+	}
+}

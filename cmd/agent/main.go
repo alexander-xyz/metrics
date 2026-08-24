@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rsa"
 	"log"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/alexander-xyz/metrics/internal/crypt"
@@ -87,6 +89,26 @@ func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.
 	}
 }
 
+// flush ставит в очередь метрики, собранные к моменту остановки,
+// чтобы воркеры успели отправить их на сервер.
+func flush(store repository.Getter, jobs chan<- []models.Metrics) {
+	batch, err := collectBatch(context.Background(), store)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	if len(batch) == 0 {
+		return
+	}
+
+	select {
+	case jobs <- batch:
+	default:
+		log.Print("job queue is full, metrics are dropped")
+	}
+}
+
 func main() {
 	printBuildInfo()
 
@@ -104,7 +126,10 @@ func main() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
+
 	store := repository.NewMemStorage()
 	jobs := make(chan []models.Metrics, config.rateLimit)
 
@@ -121,6 +146,12 @@ func main() {
 
 	report(ctx, store, jobs, time.Duration(config.reportInterval)*time.Second)
 
+	log.Print("shutdown signal received")
+
+	flush(store, jobs)
+
 	close(jobs)
 	wg.Wait()
+
+	log.Print("all metrics sent")
 }
