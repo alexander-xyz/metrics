@@ -21,6 +21,7 @@ func GetRouter(store Storage) (*chi.Mux, error) {
 
 	r := chi.NewRouter()
 	r.Use(logger.RequestLogger)
+	r.Use(logger.GzipMiddleware)
 	r.Get("/", metricsHandler)
 	r.Get("/value/{type}/{id}", GetMetricHandler(store))
 	r.Post("/update/{type}/{id}/{value}", UpdateMetricHandler(store))
