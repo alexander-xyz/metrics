@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	models "github.com/alexander-xyz/metrics/internal/model"
+	"github.com/alexander-xyz/metrics/internal/pgerrors"
 )
 
 type PostgresStorage struct {
@@ -18,10 +19,14 @@ func NewPostgresStorage(db *sql.DB) *PostgresStorage {
 }
 
 func (store *PostgresStorage) UpdateGauge(ctx context.Context, name string, value Gauge) error {
-	_, err := store.db.ExecContext(ctx, `
-		INSERT INTO metrics (id, mtype, value) VALUES ($1, $2, $3)
-		ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, value = EXCLUDED.value`,
-		name, models.Gauge, float64(value))
+	err := pgerrors.WithRetry(ctx, func() error {
+		_, err := store.db.ExecContext(ctx, `
+			INSERT INTO metrics (id, mtype, value) VALUES ($1, $2, $3)
+			ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, value = EXCLUDED.value`,
+			name, models.Gauge, float64(value))
+
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("update gauge %s: %w", name, err)
 	}
@@ -30,10 +35,14 @@ func (store *PostgresStorage) UpdateGauge(ctx context.Context, name string, valu
 }
 
 func (store *PostgresStorage) UpdateCounter(ctx context.Context, name string, value Counter) error {
-	_, err := store.db.ExecContext(ctx, `
-		INSERT INTO metrics (id, mtype, delta) VALUES ($1, $2, $3)
-		ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, delta = metrics.delta + EXCLUDED.delta`,
-		name, models.Counter, int64(value))
+	err := pgerrors.WithRetry(ctx, func() error {
+		_, err := store.db.ExecContext(ctx, `
+			INSERT INTO metrics (id, mtype, delta) VALUES ($1, $2, $3)
+			ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, delta = metrics.delta + EXCLUDED.delta`,
+			name, models.Counter, int64(value))
+
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("update counter %s: %w", name, err)
 	}
@@ -42,10 +51,14 @@ func (store *PostgresStorage) UpdateCounter(ctx context.Context, name string, va
 }
 
 func (store *PostgresStorage) SetCounter(ctx context.Context, name string, value Counter) error {
-	_, err := store.db.ExecContext(ctx, `
-		INSERT INTO metrics (id, mtype, delta) VALUES ($1, $2, $3)
-		ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, delta = EXCLUDED.delta`,
-		name, models.Counter, int64(value))
+	err := pgerrors.WithRetry(ctx, func() error {
+		_, err := store.db.ExecContext(ctx, `
+			INSERT INTO metrics (id, mtype, delta) VALUES ($1, $2, $3)
+			ON CONFLICT (id) DO UPDATE SET mtype = EXCLUDED.mtype, delta = EXCLUDED.delta`,
+			name, models.Counter, int64(value))
+
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("set counter %s: %w", name, err)
 	}
@@ -56,9 +69,13 @@ func (store *PostgresStorage) SetCounter(ctx context.Context, name string, value
 func (store *PostgresStorage) GetGauge(ctx context.Context, name string) (Gauge, error) {
 	var value sql.NullFloat64
 
-	row := store.db.QueryRowContext(ctx,
-		`SELECT value FROM metrics WHERE id = $1 AND mtype = $2`, name, models.Gauge)
-	if err := row.Scan(&value); err != nil {
+	err := pgerrors.WithRetry(ctx, func() error {
+		row := store.db.QueryRowContext(ctx,
+			`SELECT value FROM metrics WHERE id = $1 AND mtype = $2`, name, models.Gauge)
+
+		return row.Scan(&value)
+	})
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, ErrNotFound
 		}
@@ -76,9 +93,13 @@ func (store *PostgresStorage) GetGauge(ctx context.Context, name string) (Gauge,
 func (store *PostgresStorage) GetCounter(ctx context.Context, name string) (Counter, error) {
 	var delta sql.NullInt64
 
-	row := store.db.QueryRowContext(ctx,
-		`SELECT delta FROM metrics WHERE id = $1 AND mtype = $2`, name, models.Counter)
-	if err := row.Scan(&delta); err != nil {
+	err := pgerrors.WithRetry(ctx, func() error {
+		row := store.db.QueryRowContext(ctx,
+			`SELECT delta FROM metrics WHERE id = $1 AND mtype = $2`, name, models.Counter)
+
+		return row.Scan(&delta)
+	})
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, ErrNotFound
 		}
@@ -94,8 +115,15 @@ func (store *PostgresStorage) GetCounter(ctx context.Context, name string) (Coun
 }
 
 func (store *PostgresStorage) GetGauges(ctx context.Context) (map[string]Gauge, error) {
-	rows, err := store.db.QueryContext(ctx,
-		`SELECT id, value FROM metrics WHERE mtype = $1 AND value IS NOT NULL`, models.Gauge)
+	var rows *sql.Rows
+
+	err := pgerrors.WithRetry(ctx, func() error {
+		var queryErr error
+		rows, queryErr = store.db.QueryContext(ctx,
+			`SELECT id, value FROM metrics WHERE mtype = $1 AND value IS NOT NULL`, models.Gauge)
+
+		return queryErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get gauges: %w", err)
 	}
@@ -124,8 +152,15 @@ func (store *PostgresStorage) GetGauges(ctx context.Context) (map[string]Gauge, 
 }
 
 func (store *PostgresStorage) GetCounters(ctx context.Context) (map[string]Counter, error) {
-	rows, err := store.db.QueryContext(ctx,
-		`SELECT id, delta FROM metrics WHERE mtype = $1 AND delta IS NOT NULL`, models.Counter)
+	var rows *sql.Rows
+
+	err := pgerrors.WithRetry(ctx, func() error {
+		var queryErr error
+		rows, queryErr = store.db.QueryContext(ctx,
+			`SELECT id, delta FROM metrics WHERE mtype = $1 AND delta IS NOT NULL`, models.Counter)
+
+		return queryErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get counters: %w", err)
 	}
@@ -154,6 +189,12 @@ func (store *PostgresStorage) GetCounters(ctx context.Context) (map[string]Count
 }
 
 func (store *PostgresStorage) UpdateBatch(ctx context.Context, metrics []models.Metrics) error {
+	return pgerrors.WithRetry(ctx, func() error {
+		return store.updateBatch(ctx, metrics)
+	})
+}
+
+func (store *PostgresStorage) updateBatch(ctx context.Context, metrics []models.Metrics) error {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)

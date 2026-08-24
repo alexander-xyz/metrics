@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -26,6 +27,29 @@ func compress(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+var retryDelays = []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
+
+func postBatchWithRetry(ctx context.Context, url string, metrics []models.Metrics) error {
+	err := postBatch(url, metrics)
+	if err == nil {
+		return nil
+	}
+
+	for _, delay := range retryDelays {
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(delay):
+		}
+
+		if err = postBatch(url, metrics); err == nil {
+			return nil
+		}
+	}
+
+	return err
 }
 
 func postBatch(url string, metrics []models.Metrics) error {
@@ -88,5 +112,5 @@ func sendMetrics(ctx context.Context, store repository.Getter, config *Config) e
 		return nil
 	}
 
-	return postBatch(config.serverAddress+"/updates/", metrics)
+	return postBatchWithRetry(ctx, config.serverAddress+"/updates/", metrics)
 }
