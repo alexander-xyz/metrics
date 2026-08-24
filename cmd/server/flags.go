@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 )
 
 type Config struct {
@@ -13,6 +14,10 @@ func parseFlags() *Config {
 
 	flag.StringVar(&config.serverAddress, "a", "localhost:8080", "address and port to run server")
 	flag.Parse()
+
+	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
+		config.serverAddress = envRunAddr
+	}
 
 	return &config
 }

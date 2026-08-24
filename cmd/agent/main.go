@@ -8,20 +8,24 @@ import (
 )
 
 func main() {
-	config := parseFlags()
+	config, err := parseFlags()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	store := repository.NewMemStorage()
 
-	var currentPool int64 = 0
+	var currentPoll int64 = 0
 	var currentReport int64 = 0
 
 	for {
 		time.Sleep(1 * time.Second)
-		currentPool++
+		currentPoll++
 		currentReport++
 
-		if currentPool == config.poolInterval {
+		if currentPoll == config.pollInterval {
 			collectMetrics(store)
-			currentPool = 0
+			currentPoll = 0
 		}
 
 		if currentReport == config.reportInterval {
