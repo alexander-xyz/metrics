@@ -134,6 +134,8 @@ func RunServer(ctx context.Context, config *Config) error {
 }
 
 func main() {
+	printBuildInfo()
+
 	config, err := parseFlags()
 	if err != nil {
 		log.Fatal(err)

@@ -1,8 +1,13 @@
 DATABASE_DSN ?= postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable
 
+BUILD_VERSION ?= v1.0.0
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_COMMIT ?= $(shell git rev-parse --short HEAD)
+LDFLAGS = -X main.buildVersion=$(BUILD_VERSION) -X main.buildDate=$(BUILD_DATE) -X main.buildCommit=$(BUILD_COMMIT)
+
 build:
-	go build -o cmd/server/server ./cmd/server
-	go build -o cmd/agent/agent ./cmd/agent
+	go build -ldflags "$(LDFLAGS)" -o cmd/server/server ./cmd/server
+	go build -ldflags "$(LDFLAGS)" -o cmd/agent/agent ./cmd/agent
 
 1: build
 	./.tools/metricstest -test.v -test.run=^TestIteration1$$ \
