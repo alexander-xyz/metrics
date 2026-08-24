@@ -168,9 +168,9 @@ func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
 		}
 
 		data := struct {
-			Title    string
 			Gauges   map[string]repository.Gauge
 			Counters map[string]repository.Counter
+			Title    string
 		}{
 			Title:    "Metrics",
 			Gauges:   gauges,

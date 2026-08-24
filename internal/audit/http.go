@@ -10,10 +10,9 @@ import (
 
 // HTTPObserver отправляет события аудита на удалённый сервер методом POST.
 type HTTPObserver struct {
-	url    string
-	client *http.Client
-
+	client  *http.Client
 	onError func(error)
+	url     string
 }
 
 // NewHTTPObserver создаёт удалённый приёмник аудита.

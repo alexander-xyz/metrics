@@ -10,9 +10,9 @@ import (
 
 type Config struct {
 	serverAddress  string
+	key            string
 	pollInterval   int64
 	reportInterval int64
-	key            string
 	rateLimit      int64
 }
 

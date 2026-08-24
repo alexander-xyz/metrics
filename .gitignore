@@ -26,3 +26,5 @@ vendor/
 .tools
 # macOS
 .DS_Store
+cmd/staticlint/staticlint
+staticlint

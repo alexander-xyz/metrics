@@ -12,13 +12,13 @@ const defaultStoragePath = "/tmp/metrics-db.json"
 type Config struct {
 	serverAddress   string
 	logLevel        string
-	storeInterval   int64
 	fileStoragePath string
-	restore         bool
 	databaseDSN     string
 	key             string
 	auditFile       string
 	auditURL        string
+	storeInterval   int64
+	restore         bool
 }
 
 func parseFlags() (*Config, error) {

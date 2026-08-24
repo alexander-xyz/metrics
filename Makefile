@@ -135,11 +135,19 @@ build:
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
 
+.PHONY: staticlint
+staticlint:
+	go build -o cmd/staticlint/staticlint ./cmd/staticlint
+	./cmd/staticlint/staticlint ./...
+
 statictest:
 	go vet -vettool=$$(pwd)/.tools/statictest ./...
 
 cover40:
 	./.tools/covertest -test.v -test.run=^TestCoverage40$$
+
+cover55:
+	./.tools/covertest -test.v -test.run=^TestCoverage55$$
 
 fmt:
 	gofmt -l -w .

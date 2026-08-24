@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,10 +63,18 @@ func TestFileObserverAppendsEvents(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	assert.Equal(t,
-		"{\"ts\":1,\"metrics\":[\"Alloc\"],\"ip_address\":\"127.0.0.1\"}\n"+
-			"{\"ts\":2,\"metrics\":[\"Frees\"],\"ip_address\":\"127.0.0.2\"}\n",
-		string(data))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	require.Len(t, lines, 2, "каждое событие пишется на своей строке")
+
+	var first, second Event
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+
+	assert.Equal(t, Event{Timestamp: 1, Metrics: []string{"Alloc"}, IPAddress: "127.0.0.1"}, first)
+	assert.Equal(t, Event{Timestamp: 2, Metrics: []string{"Frees"}, IPAddress: "127.0.0.2"}, second)
+
+	assert.Contains(t, lines[0], `"ts":1`)
+	assert.Contains(t, lines[0], `"ip_address":"127.0.0.1"`)
 }
 
 func TestFileObserverReportsError(t *testing.T) {

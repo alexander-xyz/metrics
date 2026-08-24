@@ -17,11 +17,11 @@ func collectSystemMetrics(ctx context.Context, store repository.Updater) error {
 		return fmt.Errorf("read memory stats: %w", err)
 	}
 
-	if err := store.UpdateGauge(ctx, "TotalMemory", repository.Gauge(memory.Total)); err != nil {
+	if err = store.UpdateGauge(ctx, "TotalMemory", repository.Gauge(memory.Total)); err != nil {
 		return fmt.Errorf("collect TotalMemory: %w", err)
 	}
 
-	if err := store.UpdateGauge(ctx, "FreeMemory", repository.Gauge(memory.Free)); err != nil {
+	if err = store.UpdateGauge(ctx, "FreeMemory", repository.Gauge(memory.Free)); err != nil {
 		return fmt.Errorf("collect FreeMemory: %w", err)
 	}
 

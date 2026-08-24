@@ -22,8 +22,8 @@ func TestUpdateMetricHandler(t *testing.T) {
 
 	testCases := []struct {
 		method       string
-		expectedCode int
 		request      string
+		expectedCode int
 	}{
 		{method: http.MethodGet, expectedCode: http.StatusMethodNotAllowed, request: "/update/gauge/LastGC/1.25"},
 		{method: http.MethodPut, expectedCode: http.StatusMethodNotAllowed, request: "/update/gauge/LastGC/1.25"},
@@ -57,8 +57,8 @@ func TestUpdateMetricJSONHandler(t *testing.T) {
 	testCases := []struct {
 		name         string
 		body         string
-		expectedCode int
 		expectedBody string
+		expectedCode int
 	}{
 		{
 			name:         "gauge",
@@ -132,8 +132,8 @@ func TestGetMetricJSONHandler(t *testing.T) {
 	testCases := []struct {
 		name         string
 		body         string
-		expectedCode int
 		expectedBody string
+		expectedCode int
 	}{
 		{
 			name:         "known gauge",
@@ -214,12 +214,12 @@ func TestUpdateMetricsJSONHandler(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := resty.New().R().
+			resp, reqErr := resty.New().R().
 				SetHeader("Content-Type", "application/json").
 				SetBody(tc.body).
 				Post(srv.URL + "/updates/")
 
-			assert.NoError(t, err)
+			assert.NoError(t, reqErr)
 			assert.Equal(t, tc.expectedCode, resp.StatusCode())
 		})
 	}
