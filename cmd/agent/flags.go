@@ -6,12 +6,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/alexander-xyz/metrics/internal/config"
 )
 
 type Config struct {
 	serverAddress  string
 	key            string
 	cryptoKey      string
+	configFile     string
 	pollInterval   int64
 	reportInterval int64
 	rateLimit      int64
@@ -28,7 +31,13 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.key, "k", "", "key for request signature")
 	flag.Int64Var(&config.rateLimit, "l", 1, "limit of simultaneous outgoing requests")
 	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the public key file")
+	flag.StringVar(&config.configFile, "c", "", "path to the JSON configuration file")
+	flag.StringVar(&config.configFile, "config", "", "path to the JSON configuration file")
 	flag.Parse()
+
+	if err := applyConfigFile(&config, &flagRunAddr); err != nil {
+		return nil, err
+	}
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
 		flagRunAddr = envRunAddr
@@ -76,4 +85,49 @@ func parseFlags() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// applyConfigFile дополняет конфигурацию агента значениями из JSON-файла.
+// Опции, заданные флагом или переменной окружения, остаются как есть.
+func applyConfigFile(target *Config, runAddr *string) error {
+	path := config.Path(target.configFile)
+	if path == "" {
+		return nil
+	}
+
+	fromFile, err := config.LoadAgent(path)
+	if err != nil {
+		return err
+	}
+
+	set := setFlags()
+
+	if !set["a"] && os.Getenv("ADDRESS") == "" && fromFile.Address != "" {
+		*runAddr = fromFile.Address
+	}
+
+	if !set["crypto-key"] && os.Getenv("CRYPTO_KEY") == "" && fromFile.CryptoKey != "" {
+		target.cryptoKey = fromFile.CryptoKey
+	}
+
+	if !set["r"] && os.Getenv("REPORT_INTERVAL") == "" && fromFile.ReportInterval.Duration != 0 {
+		target.reportInterval = int64(fromFile.ReportInterval.Seconds())
+	}
+
+	if !set["p"] && os.Getenv("POLL_INTERVAL") == "" && fromFile.PollInterval.Duration != 0 {
+		target.pollInterval = int64(fromFile.PollInterval.Seconds())
+	}
+
+	return nil
+}
+
+// setFlags возвращает имена флагов, заданных в командной строке явно.
+func setFlags() map[string]bool {
+	set := map[string]bool{}
+
+	flag.Visit(func(f *flag.Flag) {
+		set[f.Name] = true
+	})
+
+	return set
 }

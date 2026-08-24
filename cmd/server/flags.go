@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/alexander-xyz/metrics/internal/config"
 )
 
 const defaultStoragePath = "/tmp/metrics-db.json"
@@ -18,6 +20,7 @@ type Config struct {
 	auditFile       string
 	auditURL        string
 	cryptoKey       string
+	configFile      string
 	storeInterval   int64
 	restore         bool
 }
@@ -35,7 +38,13 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&config.auditFile, "audit-file", "", "path to the audit log file")
 	flag.StringVar(&config.auditURL, "audit-url", "", "url of the remote audit receiver")
 	flag.StringVar(&config.cryptoKey, "crypto-key", "", "path to the private key file")
+	flag.StringVar(&config.configFile, "c", "", "path to the JSON configuration file")
+	flag.StringVar(&config.configFile, "config", "", "path to the JSON configuration file")
 	flag.Parse()
+
+	if err := applyConfigFile(&config); err != nil {
+		return nil, err
+	}
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
 		config.serverAddress = envRunAddr
@@ -88,4 +97,57 @@ func parseFlags() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// applyConfigFile дополняет конфигурацию значениями из JSON-файла.
+// Опции, заданные флагом или переменной окружения, остаются как есть.
+func applyConfigFile(target *Config) error {
+	path := config.Path(target.configFile)
+	if path == "" {
+		return nil
+	}
+
+	fromFile, err := config.LoadServer(path)
+	if err != nil {
+		return err
+	}
+
+	set := setFlags()
+
+	if !set["a"] && os.Getenv("ADDRESS") == "" && fromFile.Address != "" {
+		target.serverAddress = fromFile.Address
+	}
+
+	if !set["f"] && os.Getenv("FILE_STORAGE_PATH") == "" && fromFile.StoreFile != "" {
+		target.fileStoragePath = fromFile.StoreFile
+	}
+
+	if !set["d"] && os.Getenv("DATABASE_DSN") == "" && fromFile.DatabaseDSN != "" {
+		target.databaseDSN = fromFile.DatabaseDSN
+	}
+
+	if !set["crypto-key"] && os.Getenv("CRYPTO_KEY") == "" && fromFile.CryptoKey != "" {
+		target.cryptoKey = fromFile.CryptoKey
+	}
+
+	if !set["i"] && os.Getenv("STORE_INTERVAL") == "" && fromFile.StoreInterval.Duration != 0 {
+		target.storeInterval = int64(fromFile.StoreInterval.Seconds())
+	}
+
+	if !set["r"] && os.Getenv("RESTORE") == "" {
+		target.restore = fromFile.Restore
+	}
+
+	return nil
+}
+
+// setFlags возвращает имена флагов, заданных в командной строке явно.
+func setFlags() map[string]bool {
+	set := map[string]bool{}
+
+	flag.Visit(func(f *flag.Flag) {
+		set[f.Name] = true
+	})
+
+	return set
 }
