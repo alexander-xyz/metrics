@@ -1,43 +1,58 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"math/rand"
 	"runtime"
 
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
-func collectMetrics(store repository.Updater) {
+func collectMetrics(ctx context.Context, store repository.Updater) error {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	store.UpdateGauge("Alloc", repository.Gauge(memStats.Alloc))
-	store.UpdateGauge("BuckHashSys", repository.Gauge(memStats.BuckHashSys))
-	store.UpdateGauge("Frees", repository.Gauge(memStats.Frees))
-	store.UpdateGauge("GCCPUFraction", repository.Gauge(memStats.GCCPUFraction))
-	store.UpdateGauge("GCSys", repository.Gauge(memStats.GCSys))
-	store.UpdateGauge("HeapAlloc", repository.Gauge(memStats.HeapAlloc))
-	store.UpdateGauge("HeapIdle", repository.Gauge(memStats.HeapIdle))
-	store.UpdateGauge("HeapInuse", repository.Gauge(memStats.HeapInuse))
-	store.UpdateGauge("HeapObjects", repository.Gauge(memStats.HeapObjects))
-	store.UpdateGauge("HeapReleased", repository.Gauge(memStats.HeapReleased))
-	store.UpdateGauge("HeapSys", repository.Gauge(memStats.HeapSys))
-	store.UpdateGauge("LastGC", repository.Gauge(memStats.LastGC))
-	store.UpdateGauge("Lookups", repository.Gauge(memStats.Lookups))
-	store.UpdateGauge("MCacheInuse", repository.Gauge(memStats.MCacheInuse))
-	store.UpdateGauge("MCacheSys", repository.Gauge(memStats.MCacheSys))
-	store.UpdateGauge("MSpanInuse", repository.Gauge(memStats.MSpanInuse))
-	store.UpdateGauge("MSpanSys", repository.Gauge(memStats.MSpanSys))
-	store.UpdateGauge("Mallocs", repository.Gauge(memStats.Mallocs))
-	store.UpdateGauge("NextGC", repository.Gauge(memStats.NextGC))
-	store.UpdateGauge("NumForcedGC", repository.Gauge(memStats.NumForcedGC))
-	store.UpdateGauge("NumGC", repository.Gauge(memStats.NumGC))
-	store.UpdateGauge("OtherSys", repository.Gauge(memStats.OtherSys))
-	store.UpdateGauge("PauseTotalNs", repository.Gauge(memStats.PauseTotalNs))
-	store.UpdateGauge("StackInuse", repository.Gauge(memStats.StackInuse))
-	store.UpdateGauge("StackSys", repository.Gauge(memStats.StackSys))
-	store.UpdateGauge("Sys", repository.Gauge(memStats.Sys))
-	store.UpdateGauge("TotalAlloc", repository.Gauge(memStats.TotalAlloc))
-	store.UpdateGauge("RandomValue", repository.Gauge(rand.Float64()))
-	store.UpdateCounter("PollCount", 1)
+	gauges := map[string]repository.Gauge{
+		"Alloc":         repository.Gauge(memStats.Alloc),
+		"BuckHashSys":   repository.Gauge(memStats.BuckHashSys),
+		"Frees":         repository.Gauge(memStats.Frees),
+		"GCCPUFraction": repository.Gauge(memStats.GCCPUFraction),
+		"GCSys":         repository.Gauge(memStats.GCSys),
+		"HeapAlloc":     repository.Gauge(memStats.HeapAlloc),
+		"HeapIdle":      repository.Gauge(memStats.HeapIdle),
+		"HeapInuse":     repository.Gauge(memStats.HeapInuse),
+		"HeapObjects":   repository.Gauge(memStats.HeapObjects),
+		"HeapReleased":  repository.Gauge(memStats.HeapReleased),
+		"HeapSys":       repository.Gauge(memStats.HeapSys),
+		"LastGC":        repository.Gauge(memStats.LastGC),
+		"Lookups":       repository.Gauge(memStats.Lookups),
+		"MCacheInuse":   repository.Gauge(memStats.MCacheInuse),
+		"MCacheSys":     repository.Gauge(memStats.MCacheSys),
+		"MSpanInuse":    repository.Gauge(memStats.MSpanInuse),
+		"MSpanSys":      repository.Gauge(memStats.MSpanSys),
+		"Mallocs":       repository.Gauge(memStats.Mallocs),
+		"NextGC":        repository.Gauge(memStats.NextGC),
+		"NumForcedGC":   repository.Gauge(memStats.NumForcedGC),
+		"NumGC":         repository.Gauge(memStats.NumGC),
+		"OtherSys":      repository.Gauge(memStats.OtherSys),
+		"PauseTotalNs":  repository.Gauge(memStats.PauseTotalNs),
+		"StackInuse":    repository.Gauge(memStats.StackInuse),
+		"StackSys":      repository.Gauge(memStats.StackSys),
+		"Sys":           repository.Gauge(memStats.Sys),
+		"TotalAlloc":    repository.Gauge(memStats.TotalAlloc),
+		"RandomValue":   repository.Gauge(rand.Float64()),
+	}
+
+	for name, value := range gauges {
+		if err := store.UpdateGauge(ctx, name, value); err != nil {
+			return fmt.Errorf("collect %s: %w", name, err)
+		}
+	}
+
+	if err := store.UpdateCounter(ctx, "PollCount", 1); err != nil {
+		return fmt.Errorf("collect PollCount: %w", err)
+	}
+
+	return nil
 }

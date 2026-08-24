@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -119,8 +120,8 @@ func TestUpdateMetricJSONHandler(t *testing.T) {
 
 func TestGetMetricJSONHandler(t *testing.T) {
 	store := repository.NewMemStorage()
-	store.UpdateGauge("Alloc", repository.Gauge(42.5))
-	store.UpdateCounter("PollCount", repository.Counter(7))
+	require.NoError(t, store.UpdateGauge(context.Background(), "Alloc", repository.Gauge(42.5)))
+	require.NoError(t, store.UpdateCounter(context.Background(), "PollCount", repository.Counter(7)))
 
 	router, err := GetRouter(store, nil)
 	require.NoError(t, err)

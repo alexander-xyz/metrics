@@ -42,7 +42,11 @@ func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
 				return
 			}
 
-			store.UpdateGauge(metricName, repository.Gauge(value))
+			if err := store.UpdateGauge(req.Context(), metricName, repository.Gauge(value)); err != nil {
+				log.Print(err)
+				http.Error(res, "cannot store metric", http.StatusInternalServerError)
+			}
+
 			return
 		}
 
@@ -53,7 +57,10 @@ func UpdateMetricHandler(store repository.Updater) http.HandlerFunc {
 			return
 		}
 
-		store.UpdateCounter(metricName, repository.Counter(value))
+		if err := store.UpdateCounter(req.Context(), metricName, repository.Counter(value)); err != nil {
+			log.Print(err)
+			http.Error(res, "cannot store metric", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -75,7 +82,7 @@ func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 		}
 
 		if metricType == "gauge" {
-			value, err := store.GetGauge(metricName)
+			value, err := store.GetGauge(req.Context(), metricName)
 
 			if err != nil {
 				res.WriteHeader(http.StatusNotFound)
@@ -86,7 +93,7 @@ func GetMetricHandler(store repository.Getter) http.HandlerFunc {
 			return
 		}
 
-		value, err := store.GetCounter(metricName)
+		value, err := store.GetCounter(req.Context(), metricName)
 
 		if err != nil {
 			res.WriteHeader(http.StatusNotFound)
@@ -129,14 +136,30 @@ func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-type", "text/html")
 
+		gauges, err := store.GetGauges(req.Context())
+		if err != nil {
+			log.Print(err)
+			http.Error(res, "cannot read metrics", http.StatusInternalServerError)
+
+			return
+		}
+
+		counters, err := store.GetCounters(req.Context())
+		if err != nil {
+			log.Print(err)
+			http.Error(res, "cannot read metrics", http.StatusInternalServerError)
+
+			return
+		}
+
 		data := struct {
 			Title    string
 			Gauges   map[string]repository.Gauge
 			Counters map[string]repository.Counter
 		}{
 			Title:    "Metrics",
-			Gauges:   store.GetGauges(),
-			Counters: store.GetCounters(),
+			Gauges:   gauges,
+			Counters: counters,
 		}
 
 		if err := t.Execute(res, data); err != nil {
@@ -188,9 +211,14 @@ func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
 				return
 			}
 
-			store.UpdateGauge(metric.ID, repository.Gauge(*metric.Value))
+			if err := store.UpdateGauge(req.Context(), metric.ID, repository.Gauge(*metric.Value)); err != nil {
+				log.Print(err)
+				http.Error(res, "cannot store metric", http.StatusInternalServerError)
 
-			value, err := store.GetGauge(metric.ID)
+				return
+			}
+
+			value, err := store.GetGauge(req.Context(), metric.ID)
 			if err != nil {
 				http.Error(res, "metric not found", http.StatusNotFound)
 				return
@@ -208,9 +236,14 @@ func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
 			return
 		}
 
-		store.UpdateCounter(metric.ID, repository.Counter(*metric.Delta))
+		if err := store.UpdateCounter(req.Context(), metric.ID, repository.Counter(*metric.Delta)); err != nil {
+			log.Print(err)
+			http.Error(res, "cannot store metric", http.StatusInternalServerError)
 
-		delta, err := store.GetCounter(metric.ID)
+			return
+		}
+
+		delta, err := store.GetCounter(req.Context(), metric.ID)
 		if err != nil {
 			http.Error(res, "metric not found", http.StatusNotFound)
 			return
@@ -230,7 +263,7 @@ func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 		}
 
 		if metric.MType == models.Gauge {
-			value, err := store.GetGauge(metric.ID)
+			value, err := store.GetGauge(req.Context(), metric.ID)
 			if err != nil {
 				http.Error(res, "metric not found", http.StatusNotFound)
 				return
@@ -243,7 +276,7 @@ func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
 			return
 		}
 
-		delta, err := store.GetCounter(metric.ID)
+		delta, err := store.GetCounter(req.Context(), metric.ID)
 		if err != nil {
 			http.Error(res, "metric not found", http.StatusNotFound)
 			return

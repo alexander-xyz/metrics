@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,15 +17,25 @@ type Storage interface {
 	repository.Getter
 }
 
-func Save(store repository.Getter, path string) error {
-	metrics := make([]models.Metrics, 0, len(store.GetGauges())+len(store.GetCounters()))
+func Save(ctx context.Context, store repository.Getter, path string) error {
+	gauges, err := store.GetGauges(ctx)
+	if err != nil {
+		return fmt.Errorf("read gauges: %w", err)
+	}
 
-	for name, value := range store.GetGauges() {
+	counters, err := store.GetCounters(ctx)
+	if err != nil {
+		return fmt.Errorf("read counters: %w", err)
+	}
+
+	metrics := make([]models.Metrics, 0, len(gauges)+len(counters))
+
+	for name, value := range gauges {
 		v := float64(value)
 		metrics = append(metrics, models.Metrics{ID: name, MType: models.Gauge, Value: &v})
 	}
 
-	for name, value := range store.GetCounters() {
+	for name, value := range counters {
 		d := int64(value)
 		metrics = append(metrics, models.Metrics{ID: name, MType: models.Counter, Delta: &d})
 	}
@@ -41,7 +52,7 @@ func Save(store repository.Getter, path string) error {
 	return nil
 }
 
-func Load(store repository.Updater, path string) error {
+func Load(ctx context.Context, store repository.Updater, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -60,11 +71,15 @@ func Load(store repository.Updater, path string) error {
 		switch metric.MType {
 		case models.Gauge:
 			if metric.Value != nil {
-				store.UpdateGauge(metric.ID, repository.Gauge(*metric.Value))
+				if err := store.UpdateGauge(ctx, metric.ID, repository.Gauge(*metric.Value)); err != nil {
+					return fmt.Errorf("restore gauge %s: %w", metric.ID, err)
+				}
 			}
 		case models.Counter:
 			if metric.Delta != nil {
-				store.SetCounter(metric.ID, repository.Counter(*metric.Delta))
+				if err := store.SetCounter(ctx, metric.ID, repository.Counter(*metric.Delta)); err != nil {
+					return fmt.Errorf("restore counter %s: %w", metric.ID, err)
+				}
 			}
 		}
 	}
@@ -82,23 +97,38 @@ func NewSyncStorage(store Storage, path string, onErr func(error)) *SyncStorage 
 	return &SyncStorage{Storage: store, path: path, onErr: onErr}
 }
 
-func (s *SyncStorage) save() {
-	if err := Save(s.Storage, s.path); err != nil && s.onErr != nil {
+func (s *SyncStorage) save(ctx context.Context) {
+	if err := Save(ctx, s.Storage, s.path); err != nil && s.onErr != nil {
 		s.onErr(err)
 	}
 }
 
-func (s *SyncStorage) UpdateGauge(name string, value repository.Gauge) {
-	s.Storage.UpdateGauge(name, value)
-	s.save()
+func (s *SyncStorage) UpdateGauge(ctx context.Context, name string, value repository.Gauge) error {
+	if err := s.Storage.UpdateGauge(ctx, name, value); err != nil {
+		return err
+	}
+
+	s.save(ctx)
+
+	return nil
 }
 
-func (s *SyncStorage) UpdateCounter(name string, value repository.Counter) {
-	s.Storage.UpdateCounter(name, value)
-	s.save()
+func (s *SyncStorage) UpdateCounter(ctx context.Context, name string, value repository.Counter) error {
+	if err := s.Storage.UpdateCounter(ctx, name, value); err != nil {
+		return err
+	}
+
+	s.save(ctx)
+
+	return nil
 }
 
-func (s *SyncStorage) SetCounter(name string, value repository.Counter) {
-	s.Storage.SetCounter(name, value)
-	s.save()
+func (s *SyncStorage) SetCounter(ctx context.Context, name string, value repository.Counter) error {
+	if err := s.Storage.SetCounter(ctx, name, value); err != nil {
+		return err
+	}
+
+	s.save(ctx)
+
+	return nil
 }

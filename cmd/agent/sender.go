@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -60,31 +61,39 @@ func postMetric(url string, metric models.Metrics) error {
 	return nil
 }
 
-func sendMetrics(store repository.Getter, config *Config) error {
+func sendMetrics(ctx context.Context, store repository.Getter, config *Config) error {
 	url := config.serverAddress + "/update"
 
-	for name, value := range store.GetGauges() {
+	gauges, err := store.GetGauges(ctx)
+	if err != nil {
+		return fmt.Errorf("read gauges: %w", err)
+	}
+
+	counters, err := store.GetCounters(ctx)
+	if err != nil {
+		return fmt.Errorf("read counters: %w", err)
+	}
+
+	for name, value := range gauges {
 		v := float64(value)
 
-		err := postMetric(url, models.Metrics{
+		if err := postMetric(url, models.Metrics{
 			ID:    name,
 			MType: models.Gauge,
 			Value: &v,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
 
-	for name, value := range store.GetCounters() {
+	for name, value := range counters {
 		d := int64(value)
 
-		err := postMetric(url, models.Metrics{
+		if err := postMetric(url, models.Metrics{
 			ID:    name,
 			MType: models.Counter,
 			Delta: &d,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
