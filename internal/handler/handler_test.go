@@ -8,11 +8,15 @@ import (
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateMetricHandler(t *testing.T) {
 	store := repository.NewMemStorage()
-	srv := httptest.NewServer(GetRouter(store))
+	router, err := GetRouter(store)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(router)
 	defer srv.Close()
 
 	testCases := []struct {
@@ -37,6 +41,132 @@ func TestUpdateMetricHandler(t *testing.T) {
 			assert.NoError(t, err, "error making HTTP request")
 
 			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+		})
+	}
+}
+
+func TestUpdateMetricJSONHandler(t *testing.T) {
+	store := repository.NewMemStorage()
+	router, err := GetRouter(store)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	testCases := []struct {
+		name         string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "gauge",
+			body:         `{"id":"LastGC","type":"gauge","value":1.25}`,
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"LastGC","type":"gauge","value":1.25}`,
+		},
+		{
+			name:         "counter accumulates",
+			body:         `{"id":"PollCount","type":"counter","delta":5}`,
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"PollCount","type":"counter","delta":5}`,
+		},
+		{
+			name:         "counter accumulates twice",
+			body:         `{"id":"PollCount","type":"counter","delta":3}`,
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"PollCount","type":"counter","delta":8}`,
+		},
+		{
+			name:         "unknown type",
+			body:         `{"id":"Some","type":"histogram","value":1}`,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "empty name",
+			body:         `{"id":"","type":"gauge","value":1}`,
+			expectedCode: http.StatusNotFound,
+		},
+		{
+			name:         "broken json",
+			body:         `{"id":`,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "gauge without value",
+			body:         `{"id":"Alloc","type":"gauge"}`,
+			expectedCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := resty.New().R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(tc.body).
+				Post(srv.URL + "/update")
+
+			assert.NoError(t, err, "error making HTTP request")
+			assert.Equal(t, tc.expectedCode, resp.StatusCode())
+
+			if tc.expectedBody != "" {
+				assert.Equal(t, "application/json", resp.Header().Get("Content-Type"))
+				assert.JSONEq(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
+
+func TestGetMetricJSONHandler(t *testing.T) {
+	store := repository.NewMemStorage()
+	store.UpdateGauge("Alloc", repository.Gauge(42.5))
+	store.UpdateCounter("PollCount", repository.Counter(7))
+
+	router, err := GetRouter(store)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	testCases := []struct {
+		name         string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "known gauge",
+			body:         `{"id":"Alloc","type":"gauge"}`,
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"Alloc","type":"gauge","value":42.5}`,
+		},
+		{
+			name:         "known counter",
+			body:         `{"id":"PollCount","type":"counter"}`,
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"PollCount","type":"counter","delta":7}`,
+		},
+		{
+			name:         "unknown metric",
+			body:         `{"id":"Nope","type":"gauge"}`,
+			expectedCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := resty.New().R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(tc.body).
+				Post(srv.URL + "/value")
+
+			assert.NoError(t, err, "error making HTTP request")
+			assert.Equal(t, tc.expectedCode, resp.StatusCode())
+
+			if tc.expectedBody != "" {
+				assert.Equal(t, "application/json", resp.Header().Get("Content-Type"))
+				assert.JSONEq(t, tc.expectedBody, string(resp.Body()))
+			}
 		})
 	}
 }

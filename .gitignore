@@ -24,3 +24,5 @@ vendor/
 .idea
 .vscode
 .tools
+# macOS
+.DS_Store

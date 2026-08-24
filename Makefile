@@ -25,3 +25,54 @@ build:
 	   -binary-path=cmd/server/server \
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
+
+5: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration5$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+6: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration6$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+7: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration7$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+8: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration8$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+9: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration9$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -file-storage-path=$$TEMP_FILE \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
