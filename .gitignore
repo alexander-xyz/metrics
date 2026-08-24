@@ -28,3 +28,5 @@ vendor/
 .DS_Store
 cmd/staticlint/staticlint
 staticlint
+/reset
+cmd/reset/reset

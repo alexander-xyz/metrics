@@ -5,6 +5,8 @@ package audit
 import "sync"
 
 // Event — событие аудита обработанного запроса.
+//
+// generate:reset
 type Event struct {
 	IPAddress string   `json:"ip_address"`
 	Metrics   []string `json:"metrics"`

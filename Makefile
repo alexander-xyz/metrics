@@ -135,7 +135,10 @@ build:
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
 
-.PHONY: staticlint
+.PHONY: generate staticlint
+generate:
+	go run ./cmd/reset
+
 staticlint:
 	go build -o cmd/staticlint/staticlint ./cmd/staticlint
 	./cmd/staticlint/staticlint ./...
