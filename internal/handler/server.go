@@ -24,6 +24,10 @@ func GetRouter(store Storage) (*chi.Mux, error) {
 	r.Get("/", metricsHandler)
 	r.Get("/value/{type}/{id}", GetMetricHandler(store))
 	r.Post("/update/{type}/{id}/{value}", UpdateMetricHandler(store))
+	r.Post("/update", UpdateMetricJSONHandler(store))
+	r.Post("/update/", UpdateMetricJSONHandler(store))
+	r.Post("/value", GetMetricJSONHandler(store))
+	r.Post("/value/", GetMetricJSONHandler(store))
 
 	return r, nil
 }

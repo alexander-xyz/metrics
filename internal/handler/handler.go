@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"strconv"
 
+	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -139,4 +141,113 @@ func GetMetricsHandler(store repository.Getter) (http.HandlerFunc, error) {
 			http.Error(res, "internal server error", http.StatusInternalServerError)
 		}
 	}, nil
+}
+
+func decodeMetric(res http.ResponseWriter, req *http.Request) (models.Metrics, bool) {
+	var metric models.Metrics
+
+	if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
+		http.Error(res, "cannot decode request body", http.StatusBadRequest)
+		return metric, false
+	}
+
+	if metric.MType != models.Gauge && metric.MType != models.Counter {
+		http.Error(res, "unsupported metric type", http.StatusBadRequest)
+		return metric, false
+	}
+
+	if metric.ID == "" {
+		http.Error(res, "empty metric name", http.StatusNotFound)
+		return metric, false
+	}
+
+	return metric, true
+}
+
+func writeMetric(res http.ResponseWriter, metric models.Metrics) {
+	res.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(res).Encode(metric); err != nil {
+		log.Print(err)
+	}
+}
+
+func UpdateMetricJSONHandler(store Storage) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		metric, ok := decodeMetric(res, req)
+		if !ok {
+			return
+		}
+
+		if metric.MType == models.Gauge {
+			if metric.Value == nil {
+				http.Error(res, "empty gauge value", http.StatusBadRequest)
+				return
+			}
+
+			store.UpdateGauge(metric.ID, repository.Gauge(*metric.Value))
+
+			value, err := store.GetGauge(metric.ID)
+			if err != nil {
+				http.Error(res, "metric not found", http.StatusNotFound)
+				return
+			}
+
+			stored := float64(value)
+			metric.Value = &stored
+			writeMetric(res, metric)
+
+			return
+		}
+
+		if metric.Delta == nil {
+			http.Error(res, "empty counter value", http.StatusBadRequest)
+			return
+		}
+
+		store.UpdateCounter(metric.ID, repository.Counter(*metric.Delta))
+
+		delta, err := store.GetCounter(metric.ID)
+		if err != nil {
+			http.Error(res, "metric not found", http.StatusNotFound)
+			return
+		}
+
+		stored := int64(delta)
+		metric.Delta = &stored
+		writeMetric(res, metric)
+	}
+}
+
+func GetMetricJSONHandler(store repository.Getter) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		metric, ok := decodeMetric(res, req)
+		if !ok {
+			return
+		}
+
+		if metric.MType == models.Gauge {
+			value, err := store.GetGauge(metric.ID)
+			if err != nil {
+				http.Error(res, "metric not found", http.StatusNotFound)
+				return
+			}
+
+			stored := float64(value)
+			metric.Value = &stored
+			writeMetric(res, metric)
+
+			return
+		}
+
+		delta, err := store.GetCounter(metric.ID)
+		if err != nil {
+			http.Error(res, "metric not found", http.StatusNotFound)
+			return
+		}
+
+		stored := int64(delta)
+		metric.Delta = &stored
+		writeMetric(res, metric)
+	}
 }

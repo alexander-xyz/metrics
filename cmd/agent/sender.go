@@ -1,29 +1,61 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
+	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
 
-func sendMetrics(store repository.Getter, config *Config) error {
-	for t, v := range store.GetGauges() {
-		url := fmt.Sprintf("%s/update/gauge/%s/%g", config.serverAddress, t, v)
-		resp, err := http.Post(url, "text/plain", nil)
-		if err != nil {
-			return fmt.Errorf("error sending gauge metrics: %w", err)
-		}
-		resp.Body.Close()
+func postMetric(url string, metric models.Metrics) error {
+	body, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("marshal metric %s: %w", metric.ID, err)
 	}
 
-	for t, v := range store.GetCounters() {
-		url := fmt.Sprintf("%s/update/counter/%s/%d", config.serverAddress, t, v)
-		resp, err := http.Post(url, "text/plain", nil)
+	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("send metric %s: %w", metric.ID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("send metric %s: unexpected status %d", metric.ID, resp.StatusCode)
+	}
+
+	return nil
+}
+
+func sendMetrics(store repository.Getter, config *Config) error {
+	url := config.serverAddress + "/update"
+
+	for name, value := range store.GetGauges() {
+		v := float64(value)
+
+		err := postMetric(url, models.Metrics{
+			ID:    name,
+			MType: models.Gauge,
+			Value: &v,
+		})
 		if err != nil {
-			return fmt.Errorf("error sending counter metrics: %w", err)
+			return err
 		}
-		resp.Body.Close()
+	}
+
+	for name, value := range store.GetCounters() {
+		d := int64(value)
+
+		err := postMetric(url, models.Metrics{
+			ID:    name,
+			MType: models.Counter,
+			Delta: &d,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
