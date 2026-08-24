@@ -134,3 +134,9 @@ build:
 	   -key="$$TEMP_FILE" \
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
+
+statictest:
+	go vet -vettool=$$(pwd)/.tools/statictest ./...
+
+cover40:
+	./.tools/covertest -test.v -test.run=^TestCoverage40$$
