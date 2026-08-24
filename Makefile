@@ -1,3 +1,5 @@
+DATABASE_DSN ?= postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable
+
 build:
 	go build -o cmd/server/server ./cmd/server
 	go build -o cmd/agent/agent ./cmd/agent
@@ -74,5 +76,49 @@ build:
 	   -agent-binary-path=cmd/agent/agent \
 	   -binary-path=cmd/server/server \
 	   -file-storage-path=$$TEMP_FILE \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+10: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration10[AB]$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -database-dsn='$(DATABASE_DSN)' \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+11: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration11$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -database-dsn='$(DATABASE_DSN)' \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+12: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration12$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -database-dsn='$(DATABASE_DSN)' \
+	   -server-port=$$SERVER_PORT \
+	   -source-path=.
+
+13: build
+	SERVER_PORT=$$(./.tools/random unused-port) && \
+	ADDRESS="localhost:$$SERVER_PORT" && \
+	TEMP_FILE=$$(./.tools/random tempfile) && \
+	./.tools/metricstest -test.v -test.run=^TestIteration13$$ \
+	   -agent-binary-path=cmd/agent/agent \
+	   -binary-path=cmd/server/server \
+	   -database-dsn='$(DATABASE_DSN)' \
 	   -server-port=$$SERVER_PORT \
 	   -source-path=.
