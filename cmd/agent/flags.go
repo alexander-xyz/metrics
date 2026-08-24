@@ -12,6 +12,8 @@ type Config struct {
 	serverAddress  string
 	pollInterval   int64
 	reportInterval int64
+	key            string
+	rateLimit      int64
 }
 
 func parseFlags() (*Config, error) {
@@ -22,6 +24,8 @@ func parseFlags() (*Config, error) {
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.Int64Var(&config.reportInterval, "r", 10, "report interval in seconds")
 	flag.Int64Var(&config.pollInterval, "p", 2, "update poll interval in seconds")
+	flag.StringVar(&config.key, "k", "", "key for request signature")
+	flag.Int64Var(&config.rateLimit, "l", 1, "limit of simultaneous outgoing requests")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -44,6 +48,19 @@ func parseFlags() (*Config, error) {
 		}
 
 		config.pollInterval = value
+	}
+
+	if envKey := os.Getenv("KEY"); envKey != "" {
+		config.key = envKey
+	}
+
+	if envRateLimit := os.Getenv("RATE_LIMIT"); envRateLimit != "" {
+		value, err := strconv.ParseInt(envRateLimit, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse RATE_LIMIT: %w", err)
+		}
+
+		config.rateLimit = value
 	}
 
 	if !strings.HasPrefix(flagRunAddr, "http") {

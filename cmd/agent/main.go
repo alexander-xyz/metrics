@@ -3,10 +3,87 @@ package main
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
+	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 )
+
+func pollRuntime(ctx context.Context, store repository.Updater, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := collectMetrics(ctx, store); err != nil {
+				log.Print(err)
+			}
+		}
+	}
+}
+
+func pollSystem(ctx context.Context, store repository.Updater, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := collectSystemMetrics(ctx, store); err != nil {
+				log.Print(err)
+			}
+		}
+	}
+}
+
+func report(ctx context.Context, store repository.Getter, jobs chan<- []models.Metrics, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			batch, err := collectBatch(ctx, store)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+
+			if len(batch) == 0 {
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case jobs <- batch:
+			}
+		}
+	}
+}
+
+func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.Updater, config *Config, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for batch := range jobs {
+		if err := sendBatch(ctx, batch, config); err != nil {
+			log.Print(err)
+			continue
+		}
+
+		if err := store.SetCounter(ctx, "PollCount", 0); err != nil {
+			log.Print(err)
+		}
+	}
+}
 
 func main() {
 	config, err := parseFlags()
@@ -14,34 +91,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	store := repository.NewMemStorage()
 	ctx := context.Background()
+	store := repository.NewMemStorage()
+	jobs := make(chan []models.Metrics, config.rateLimit)
 
-	var currentPoll int64 = 0
-	var currentReport int64 = 0
+	var wg sync.WaitGroup
 
-	for {
-		time.Sleep(1 * time.Second)
-		currentPoll++
-		currentReport++
+	for i := int64(0); i < config.rateLimit; i++ {
+		wg.Add(1)
 
-		if currentPoll == config.pollInterval {
-			if err := collectMetrics(ctx, store); err != nil {
-				log.Print(err)
-			}
-
-			currentPoll = 0
-		}
-
-		if currentReport == config.reportInterval {
-			if err := sendMetrics(ctx, store, config); err != nil {
-				log.Print(err)
-			}
-
-			if err := store.SetCounter(ctx, "PollCount", 0); err != nil {
-				log.Print(err)
-			}
-			currentReport = 0
-		}
+		go worker(ctx, jobs, store, config, &wg)
 	}
+
+	go pollRuntime(ctx, store, time.Duration(config.pollInterval)*time.Second)
+	go pollSystem(ctx, store, time.Duration(config.pollInterval)*time.Second)
+
+	report(ctx, store, jobs, time.Duration(config.reportInterval)*time.Second)
+
+	close(jobs)
+	wg.Wait()
 }
