@@ -9,15 +9,26 @@ import (
 	"net/http"
 	"time"
 
+	"sync"
+
 	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/alexander-xyz/metrics/internal/signature"
 )
 
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
+
 func compress(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 
-	zw := gzip.NewWriter(&buf)
+	zw := gzipWriterPool.Get().(*gzip.Writer)
+	zw.Reset(&buf)
+
+	defer gzipWriterPool.Put(zw)
 
 	if _, err := zw.Write(data); err != nil {
 		return nil, fmt.Errorf("write gzip data: %w", err)

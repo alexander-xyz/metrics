@@ -3,6 +3,8 @@ package handler
 import (
 	"database/sql"
 	"fmt"
+	"net/http"
+	"net/http/pprof"
 
 	"github.com/alexander-xyz/metrics/internal/logger"
 	"github.com/alexander-xyz/metrics/internal/repository"
@@ -35,6 +37,19 @@ func GetRouter(store Storage, db *sql.DB, key string, auditor Auditor) (*chi.Mux
 	r.Post("/updates", UpdateMetricsJSONHandler(store, auditor))
 	r.Post("/updates/", UpdateMetricsJSONHandler(store, auditor))
 	r.Get("/ping", PingHandler(db))
+	r.Mount("/debug/pprof", pprofRouter())
 
 	return r, nil
+}
+
+func pprofRouter() *chi.Mux {
+	r := chi.NewRouter()
+	r.HandleFunc("/", pprof.Index)
+	r.HandleFunc("/cmdline", pprof.Cmdline)
+	r.HandleFunc("/profile", pprof.Profile)
+	r.HandleFunc("/symbol", pprof.Symbol)
+	r.HandleFunc("/trace", pprof.Trace)
+	r.Method(http.MethodGet, "/{name}", http.HandlerFunc(pprof.Index))
+
+	return r
 }
