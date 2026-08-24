@@ -5,10 +5,12 @@ package audit
 import "sync"
 
 // Event — событие аудита обработанного запроса.
+//
+// generate:reset
 type Event struct {
-	Timestamp int64    `json:"ts"`
-	Metrics   []string `json:"metrics"`
 	IPAddress string   `json:"ip_address"`
+	Metrics   []string `json:"metrics"`
+	Timestamp int64    `json:"ts"`
 }
 
 // Observer — приёмник событий аудита.
@@ -20,8 +22,8 @@ type Observer interface {
 // Publisher рассылает события аудита подписанным приёмникам
 // и безопасен для конкурентного использования.
 type Publisher struct {
-	mu        sync.RWMutex
 	observers map[string]Observer
+	mu        sync.RWMutex
 }
 
 // NewPublisher создаёт издателя без подписчиков.

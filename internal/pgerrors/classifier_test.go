@@ -14,8 +14,8 @@ func TestClassify(t *testing.T) {
 	classifier := NewPostgresErrorClassifier()
 
 	testCases := []struct {
-		name string
 		err  error
+		name string
 		want PGErrorClassification
 	}{
 		{name: "nil", err: nil, want: NonRetriable},

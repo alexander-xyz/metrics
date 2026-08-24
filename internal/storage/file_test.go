@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
+	models "github.com/alexander-xyz/metrics/internal/model"
 	"github.com/alexander-xyz/metrics/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,4 +71,50 @@ func TestSyncStorageWritesOnEveryUpdate(t *testing.T) {
 	gauge, err := target.GetGauge(ctx, "Alloc")
 	require.NoError(t, err)
 	assert.Equal(t, repository.Gauge(3.25), gauge)
+}
+
+func TestSyncStorageWritesOnCounterAndBatch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.json")
+	store := NewSyncStorage(repository.NewMemStorage(), path, func(err error) {
+		t.Errorf("unexpected error: %v", err)
+	})
+
+	ctx := context.Background()
+
+	require.NoError(t, store.UpdateCounter(ctx, "PollCount", 2))
+	require.NoError(t, store.SetCounter(ctx, "PollCount", 5))
+
+	value := 1.5
+	require.NoError(t, store.UpdateBatch(ctx, []models.Metrics{
+		{ID: "Alloc", MType: models.Gauge, Value: &value},
+	}))
+
+	restored := repository.NewMemStorage()
+	require.NoError(t, Load(ctx, restored, path))
+
+	counter, err := restored.GetCounter(ctx, "PollCount")
+	require.NoError(t, err)
+	assert.Equal(t, repository.Counter(5), counter)
+
+	gauge, err := restored.GetGauge(ctx, "Alloc")
+	require.NoError(t, err)
+	assert.Equal(t, repository.Gauge(1.5), gauge)
+}
+
+func TestSyncStorageReportsWriteError(t *testing.T) {
+	var got error
+
+	store := NewSyncStorage(repository.NewMemStorage(), filepath.Join(t.TempDir(), "missing", "metrics.json"), func(err error) {
+		got = err
+	})
+
+	require.NoError(t, store.UpdateGauge(context.Background(), "Alloc", 1))
+	assert.Error(t, got, "ошибка записи передаётся в onErr")
+}
+
+func TestLoadRejectsBrokenFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.json")
+	require.NoError(t, os.WriteFile(path, []byte("не json"), 0666))
+
+	assert.Error(t, Load(context.Background(), repository.NewMemStorage(), path))
 }

@@ -9,8 +9,8 @@ import (
 
 // FileObserver дописывает события аудита в файл, по одному в строке.
 type FileObserver struct {
-	path    string
 	onError func(error)
+	path    string
 	mu      sync.Mutex
 }
 

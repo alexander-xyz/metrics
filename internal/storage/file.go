@@ -97,8 +97,8 @@ func Load(ctx context.Context, store repository.Updater, path string) error {
 // сразу после каждого изменения.
 type SyncStorage struct {
 	Storage
-	path  string
 	onErr func(error)
+	path  string
 }
 
 // NewSyncStorage создаёт хранилище с синхронной записью в файл.

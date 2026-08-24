@@ -103,3 +103,71 @@ func TestWorkerResetsPollCount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, repository.Counter(0), counter, "после отправки счётчик сбрасывается")
 }
+
+func TestPollSystemStopsOnContext(t *testing.T) {
+	store := repository.NewMemStorage()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+
+	go func() {
+		pollSystem(ctx, store, 10*time.Millisecond)
+		close(done)
+	}()
+
+	time.Sleep(60 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollSystem не завершился после отмены контекста")
+	}
+
+	_, err := store.GetGauge(context.Background(), "TotalMemory")
+	require.NoError(t, err, "системные метрики успели собраться")
+}
+
+func TestWorkerKeepsCounterWhenSendFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	store := repository.NewMemStorage()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.NoError(t, store.UpdateCounter(ctx, "PollCount", 7))
+
+	jobs := make(chan []models.Metrics, 1)
+	value := 1.5
+	jobs <- []models.Metrics{{ID: "Alloc", MType: models.Gauge, Value: &value}}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	worker(ctx, jobs, store, &Config{serverAddress: srv.URL}, &wg)
+	wg.Wait()
+
+	counter, err := store.GetCounter(context.Background(), "PollCount")
+	require.NoError(t, err)
+	assert.Equal(t, repository.Counter(7), counter, "при ошибке отправки счётчик не сбрасывается")
+}
+
+func TestReportSkipsEmptyStore(t *testing.T) {
+	store := repository.NewMemStorage()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	jobs := make(chan []models.Metrics, 1)
+
+	go report(ctx, store, jobs, 10*time.Millisecond)
+
+	select {
+	case batch := <-jobs:
+		t.Fatalf("пустой батч не должен отправляться, получено %d метрик", len(batch))
+	case <-time.After(120 * time.Millisecond):
+	}
+}

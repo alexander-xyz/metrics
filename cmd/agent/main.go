@@ -86,6 +86,8 @@ func worker(ctx context.Context, jobs <-chan []models.Metrics, store repository.
 }
 
 func main() {
+	printBuildInfo()
+
 	config, err := parseFlags()
 	if err != nil {
 		log.Fatal(err)

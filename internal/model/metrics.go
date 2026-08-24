@@ -1,11 +1,14 @@
 // Package models описывает представление метрики в JSON-формате.
 package models
 
+//go:generate go run ../../cmd/reset ..
+
 const (
 	Counter = "counter"
 	Gauge   = "gauge"
 )
 
+// generate:reset
 // NOTE: Не усложняем пример, вводя иерархическую вложенность структур.
 // Органичиваясь плоской моделью.
 // Delta и Value объявлены через указатели,

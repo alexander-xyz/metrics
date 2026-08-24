@@ -40,9 +40,9 @@ type Getter interface {
 
 // MemStorage хранит метрики в памяти и безопасен для конкурентного доступа.
 type MemStorage struct {
-	mu       sync.RWMutex
 	gauges   map[string]Gauge
 	counters map[string]Counter
+	mu       sync.RWMutex
 }
 
 // NewMemStorage создаёт пустое хранилище метрик в памяти.
